@@ -1,0 +1,34 @@
+---
+description: StoryStrand essentials (full brief in docs/CONTEXT.md)
+alwaysApply: true
+---
+
+# StoryStrand: "Google Maps for your curiosity"
+There are two separate 3D maps, Book Map and Knowledge Map, which share one BGE-M3 meaning space and are linked by bridges. Mobile-first website only, no native app. Full brief: `docs/CONTEXT.md`. Section 17 items are locked; ask Omar before changing them.
+
+## Layout
+- `frontend/`: Next.js App Router + TS on Vercel, Tailwind, Framer Motion, react-three-fiber + drei. Types live in `lib/types.ts`.
+- `backend/`: FastAPI + MLX + Ollama on the M5, exposed through an ngrok static domain. Contains `models/item.py`, `db/schema.sql`, `routing/` and `main.py` (CORS for Vercel origins).
+- `data/scripts/`: offline pipeline (clean/fetch, score_difficulty, embed_items, load_tiger, cluster_items, project_3d, label_clusters, build_graph, build_portals). Run long jobs with `nohup`, not inside the Agent.
+- Python: conda env `SCIENCE-env` (3.12, arm64). Never use 3.14.
+
+## Data model
+- One `Item` model for everything (Pydantic + matching TS interface). `map` is `"books" | "knowledge"`; `type` is book | encyclopedia | report | paper | film (film is reserved). `id` = `"<type>:<source_id>"`. `difficulty` 1–5 is set on the knowledge map only. Other fields: slug, title, creators, year, description, tags, cover_url, rating, attributes, cluster_id/label, x/y/z.
+- Embedding text = `f"{title}. {', '.join(tags)}. {description}"`, with no type prefix.
+- **Tiger Data (Postgres + pgvector + pgvectorscale) is the only database.** Tables: items (vector(1024), DiskANN index), portals, book_concepts, guests, guest_positions, routes (`relaxed` flag), events hypertable, `neighborhood_traffic` continuous aggregate (`materialized_only = false`). No other DB, no pgai vectorizer, no in-DB LLM calls.
+- **Embeddings: BGE-M3 on MLX (mlx-embeddings), 1024-d.** Fallback only: sentence-transformers on MPS.
+
+## Math rules
+- Clustering: 12-d UMAP, then sklearn HDBSCAN; noise points join the nearest centroid. A separate 3D UMAP is for display only.
+- **Routes, search and bridges always use full 1024-d cosine similarity, never 3D/UMAP distance.** Edge cost = (1 − s)².
+- **Strict climb rule (Knowledge Map):** a learning-route edge is allowed only if `d_to - d_from ∈ {0, 1}`. Never drop a level, never skip one. This is a hard graph filter, not a penalty. Every level 1–4 item gets an uphill edge to its nearest level+1 item. If there is no strict path, fall back to the soft graph and return `relaxed: true`; demo routes must be strict. Trimming keeps ≥1 stop per level.
+- Book Map taste routes: undirected Dijkstra, trimmed to max_stops (default 6).
+
+## Frontend rules
+- **All frontend HTTP goes through `api()` in `frontend/lib/api.ts`** (sends the `ngrok-skip-browser-warning` header). Never call bare `fetch`.
+- Each map renders as one draw call; tap picking uses screen-space projection; item/route/DNA views are bottom sheets over a persistent scene. Narration starts from a user tap (iOS audio).
+- Brand: teal #136E6F, coral #FF7B67, Bricolage Grotesque + Work Sans, "Modern Dark (Cinema)" style.
+
+## Secrets
+- **Secrets live only in `.env` / `.env.local`, which are gitignored.** Never hardcode or commit keys (Tiger, xAI, ngrok). `NEXT_PUBLIC_API_URL` is public, not a secret.
+- No scraping: datasets and official APIs only.
