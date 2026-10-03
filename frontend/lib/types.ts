@@ -20,6 +20,15 @@ export interface SearchHit extends MapPoint {
   creators: string[];
 }
 
+/** GET /api/items/:id: the full item and where to read it (first link is the primary one). */
+export interface ItemDetail extends SearchHit {
+  map: MapName;
+  year: number | null;
+  description: string;
+  tags: string[];
+  links: { label: string; url: string }[];
+}
+
 /** A route start or destination: typed text (matched by meaning) or a known item. */
 export type RouteEndpoint = { text: string } | { item_id: string };
 

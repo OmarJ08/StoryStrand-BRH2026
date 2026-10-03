@@ -56,6 +56,20 @@ class SearchHit(MapPoint):
     creators: list[str] = []
 
 
+class ItemLink(BaseModel):
+    label: str               # e.g. "arXiv", "PDF", "Wikipedia", "Goodreads"
+    url: str
+
+
+class ItemDetail(SearchHit):
+    """GET /api/items/{id}: everything the item sheet shows, plus where to read it."""
+    map: MapName
+    year: Optional[int] = None
+    description: str = ""
+    tags: list[str] = []
+    links: list[ItemLink] = []  # first is the primary "open" link
+
+
 class RouteEndpoint(BaseModel):
     """A route start or destination: typed text (matched by meaning) or a known item."""
     text: Optional[str] = Field(default=None, min_length=1, max_length=200)

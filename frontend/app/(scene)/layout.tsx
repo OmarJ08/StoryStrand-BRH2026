@@ -5,7 +5,8 @@ import { SceneProvider } from "@/components/map/SceneContext";
 export default function SceneLayout({ children }: LayoutProps<"/">) {
   return (
     <SceneProvider>
-      <div className="fixed inset-0 h-dvh w-full touch-none overflow-hidden">
+      {/* touch-none lives on the canvas only, so sheets and lists can still scroll by touch */}
+      <div className="fixed inset-0 h-dvh w-full overflow-hidden">
         <MapExperience />
         {children}
       </div>

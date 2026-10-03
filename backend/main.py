@@ -9,8 +9,8 @@ from fastapi.responses import FileResponse
 
 from backend.db.conn import get_conn
 from backend.embeddings import warm_in_background
-from backend.models.item import (MapName, MapPoint, RouteNotes, RouteRequest, RouteResponse,
-                                 RouteVoice, SearchHit, SearchRequest, VoiceClip)
+from backend.models.item import (ItemDetail, ItemLink, MapName, MapPoint, RouteNotes, RouteRequest,
+                                 RouteResponse, RouteVoice, SearchHit, SearchRequest, VoiceClip)
 from backend.routing.graph import load_graph
 from backend.routing.notes import run_notes_job
 from backend.routing.service import plan_route
@@ -90,6 +90,43 @@ def search(req: SearchRequest) -> list[SearchHit]:
         ).fetchall()
     fields = SearchHit.model_fields.keys()
     return [SearchHit(**dict(zip(fields, r))) for r in rows]
+
+
+def source_links(item_type: str, attrs: dict) -> list[ItemLink]:
+    """Where to actually read an item, primary link first."""
+    links: list[ItemLink] = []
+    if item_type == "paper":
+        if attrs.get("url"):
+            links.append(ItemLink(label="arXiv", url=attrs["url"]))
+        if attrs.get("arxiv_id"):
+            links.append(ItemLink(label="PDF", url=f"https://arxiv.org/pdf/{attrs['arxiv_id']}"))
+        if attrs.get("doi"):
+            links.append(ItemLink(label="DOI", url=f"https://doi.org/{attrs['doi']}"))
+    elif item_type == "encyclopedia" and attrs.get("url"):
+        links.append(ItemLink(label="Wikipedia", url=attrs["url"]))
+    elif item_type == "book":
+        if attrs.get("goodreads_book_id"):
+            links.append(ItemLink(label="Goodreads",
+                                  url=f"https://www.goodreads.com/book/show/{attrs['goodreads_book_id']}"))
+        if isbn := attrs.get("isbn13") or attrs.get("isbn"):
+            links.append(ItemLink(label="Open Library", url=f"https://openlibrary.org/isbn/{isbn}"))
+    return links
+
+
+@app.get("/api/items/{item_id:path}")
+def item_detail(item_id: str) -> ItemDetail:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT id, type, title, cover_url, difficulty, cluster_label, x, y, z, creators, "
+            "map, year, description, tags, attributes FROM items WHERE id = %s",
+            (item_id,),
+        ).fetchone()
+    if row is None:
+        raise HTTPException(404, f"no item {item_id}")
+    *fields, attrs = row
+    names = ["id", "type", "title", "cover_url", "difficulty", "cluster_label", "x", "y", "z",
+             "creators", "map", "year", "description", "tags"]
+    return ItemDetail(**dict(zip(names, fields)), links=source_links(row[1], attrs or {}))
 
 
 @app.post("/api/route")
