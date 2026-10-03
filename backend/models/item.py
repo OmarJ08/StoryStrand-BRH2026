@@ -31,5 +31,18 @@ class Item(BaseModel):
     z: Optional[float] = None
 
 
+class MapPoint(BaseModel):
+    """One point on a map, as returned by GET /api/map."""
+    id: str
+    type: ItemType
+    title: str
+    cover_url: Optional[str] = None
+    difficulty: Optional[int] = None
+    cluster_label: str
+    x: float
+    y: float
+    z: float
+
+
 def embedding_text(item: Item) -> str:
     return f"{item.title}. {', '.join(item.tags)}. {item.description}".strip()

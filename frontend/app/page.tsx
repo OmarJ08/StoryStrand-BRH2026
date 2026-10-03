@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 
@@ -29,6 +30,12 @@ export default function Home() {
         <StatusLine health={health} />
         <p className="mt-2 truncate text-xs text-white/40">{process.env.NEXT_PUBLIC_API_URL}</p>
       </div>
+      <Link
+        href="/map/books"
+        className="rounded-full bg-coral px-6 py-3 font-display font-semibold text-ink transition-transform active:scale-95"
+      >
+        Open the map
+      </Link>
     </main>
   );
 }
