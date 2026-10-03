@@ -2,15 +2,17 @@ from contextlib import asynccontextmanager
 from functools import cache
 
 import httpx
-from fastapi import BackgroundTasks, FastAPI, HTTPException, Response
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse
 
 from backend.db.conn import get_conn
 from backend.embeddings import warm_in_background
-from backend.models.item import (ItemDetail, ItemLink, MapName, MapPoint, RouteNotes, RouteRequest,
-                                 RouteResponse, RouteVoice, SearchHit, SearchRequest, VoiceClip)
+from backend.guest import plan_guest, popular_books
+from backend.models.item import (GuestRequest, GuestResponse, ItemDetail, ItemLink, MapName,
+                                 MapPoint, RouteNotes, RouteRequest, RouteResponse, RouteVoice,
+                                 SearchHit, SearchRequest, VoiceClip)
 from backend.routing.graph import load_graph
 from backend.routing.notes import run_notes_job
 from backend.routing.service import plan_route
@@ -127,6 +129,17 @@ def item_detail(item_id: str) -> ItemDetail:
     names = ["id", "type", "title", "cover_url", "difficulty", "cluster_label", "x", "y", "z",
              "creators", "map", "year", "description", "tags"]
     return ItemDetail(**dict(zip(names, fields)), links=source_links(row[1], attrs or {}))
+
+
+@app.post("/api/guest")
+def guest(req: GuestRequest) -> GuestResponse:
+    """5 picked books -> taste centroid, Book Map pin, DNA panels, suggested curiosity pin."""
+    return plan_guest(req)
+
+
+@app.get("/api/books/popular")
+def books_popular(limit: int = Query(default=30, ge=1, le=100)) -> list[SearchHit]:
+    return popular_books(limit)
 
 
 @app.post("/api/route")

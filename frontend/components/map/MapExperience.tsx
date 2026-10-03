@@ -15,20 +15,37 @@ import { centroidsOf, LabelOverlay, LabelProjector } from "./Labels";
 import MapSwitcher from "./MapSwitcher";
 import PointCloud from "./PointCloud";
 import PointPicker from "./PointPicker";
+import { useGuest } from "@/lib/guest";
+import { GuestPin, PinLabel, PinLabelProjector } from "./GuestPin";
 import RouteLine from "./RouteLine";
 import { useScene } from "./SceneContext";
 
 const ROUTE_VIEW_SHIFT = 0.14;   // lift the route into the band between header and climb panel
+const REVEAL_VIEW_SHIFT = 0.24;  // keep the dropped pin above the DNA panel
+const PIN_COLOR: Record<MapName, string> = { books: "#ff7b67", knowledge: "#2fc4c4" };
 
 /**
- * The persistent map scene: lives in app/(scene)/layout.tsx so moving between /map/* and
- * /route never remounts it. /route always shows the Knowledge Map.
+ * The persistent map scene: lives in app/(scene)/layout.tsx so moving between /map/*,
+ * /route and /onboarding never remounts it. /route shows the Knowledge Map, onboarding the
+ * Book Map unless a page sets mapOverride. A guest's pin shows on whichever map is up.
  */
 export default function MapExperience() {
   const params = useParams<{ map?: string }>();
-  const onRoute = usePathname() === "/route";
-  const map: MapName = onRoute || params.map === "knowledge" ? "knowledge" : "books";
-  const { route, selection, setSelection, focus, flyTo, activeStop } = useScene();
+  const pathname = usePathname();
+  const onRoute = pathname === "/route";
+  const onMapPage = pathname.startsWith("/map/");
+  const onReveal = pathname === "/onboarding/reveal";
+  const { route, selection, setSelection, focus, flyTo, activeStop, mapOverride } = useScene();
+  const map: MapName = mapOverride ?? (onRoute || params.map === "knowledge" ? "knowledge" : "books");
+  const guest = useGuest();
+  const pin = guest ? (map === "books" ? guest.book_pin : guest.curiosity_pin) : null;
+  const pinLabel = useRef<HTMLDivElement>(null);
+  const placePinLabel = useCallback((x: number, y: number, visible: boolean) => {
+    const el = pinLabel.current;
+    if (!el) return;
+    el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`;
+    el.style.opacity = visible ? "1" : "0";
+  }, []);
 
   const [data, setData] = useState<Partial<Record<MapName, MapPoint[]>>>({});
   const [error, setError] = useState<{ map: MapName; message: string } | null>(null);
@@ -51,8 +68,10 @@ export default function MapExperience() {
     () => [
       ...(selected ? [selected] : []),
       ...(showRoute && route ? route.stops.map((s) => s.item) : []),
+      // the pin head stands ~1 unit above its spot; keep both clear
+      ...(pin ? [pin, { x: pin.x, y: pin.y + 1, z: pin.z }] : []),
     ],
-    [selected, showRoute, route],
+    [selected, showRoute, route, pin],
   );
   const palette = useMemo(() => clusterPalette((points ?? []).map((p) => p.cluster_label)), [points]);
   const centroids = useMemo(() => centroidsOf(points ?? []), [points]);
@@ -93,7 +112,13 @@ export default function MapExperience() {
           </>
         )}
         {showRoute && <RouteLine route={route} active={activeStop} />}
-        <ViewShift fraction={showRoute ? ROUTE_VIEW_SHIFT : 0} />
+        {pin && guest && (
+          <group key={`${guest.guest_id}-${map}-${pin.x}`}>
+            <GuestPin pin={pin} color={PIN_COLOR[map]} />
+            <PinLabelProjector pin={pin} onFrame={placePinLabel} />
+          </group>
+        )}
+        <ViewShift fraction={showRoute ? ROUTE_VIEW_SHIFT : onReveal ? REVEAL_VIEW_SHIFT : 0} />
         <CameraRig map={map} focus={focus} />
         <OrbitControls
           makeDefault
@@ -108,8 +133,16 @@ export default function MapExperience() {
       </Canvas>
 
       <LabelOverlay centroids={centroids} palette={palette} refs={labelRefs} active={activeLabel} />
+      {pin && (
+        <PinLabel
+          key={map}
+          text={pin.suggested ? "Your curiosity · suggested" : "You are here"}
+          color={PIN_COLOR[map]}
+          label={pinLabel}
+        />
+      )}
 
-      {!onRoute && (
+      {onMapPage && (
         <header className="pointer-events-none fixed inset-x-0 top-0 z-10 flex flex-col items-center gap-3 px-4 pt-[max(1rem,env(safe-area-inset-top))]">
           <MapSwitcher current={map} />
           <SearchBox

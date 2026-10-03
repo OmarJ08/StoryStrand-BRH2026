@@ -70,6 +70,39 @@ class ItemDetail(SearchHit):
     links: list[ItemLink] = []  # first is the primary "open" link
 
 
+class GuestRequest(BaseModel):
+    guest_id: UUID
+    book_ids: list[str] = Field(min_length=5, max_length=5)
+
+    @model_validator(mode="after")
+    def unique(self) -> "GuestRequest":
+        if len(set(self.book_ids)) != len(self.book_ids):
+            raise ValueError("pick 5 different books")
+        return self
+
+
+class Pin(BaseModel):
+    x: float
+    y: float
+    z: float
+    home_cluster: str
+    suggested: bool = False      # True for the curiosity pin (Section 10)
+
+
+class DnaShare(BaseModel):
+    label: str
+    share: float                 # softmax share; a map's shares sum to 1
+
+
+class GuestResponse(BaseModel):
+    """POST /api/guest (Section 12): where the guest's taste sits on both maps."""
+    guest_id: UUID
+    picks: list[SearchHit]
+    book_pin: Pin
+    curiosity_pin: Pin
+    dna: dict[MapName, list[DnaShare]]
+
+
 class RouteEndpoint(BaseModel):
     """A route start or destination: typed text (matched by meaning) or a known item."""
     text: Optional[str] = Field(default=None, min_length=1, max_length=200)
