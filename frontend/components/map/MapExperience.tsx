@@ -7,7 +7,8 @@ import { useParams, usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import SearchBox from "@/components/SearchBox";
-import type { MapName, MapPoint, SearchHit } from "@/lib/types";
+import Logo from "@/components/Logo";
+import type { MapName, MapPoint, Pin, SearchHit } from "@/lib/types";
 import CameraRig, { pointFocus, ViewShift } from "./CameraRig";
 import { clusterPalette } from "./colors";
 import ItemSheet from "./ItemSheet";
@@ -38,7 +39,7 @@ export default function MapExperience() {
   const { route, selection, setSelection, focus, flyTo, activeStop, mapOverride } = useScene();
   const map: MapName = mapOverride ?? (onRoute || params.map === "knowledge" ? "knowledge" : "books");
   const guest = useGuest();
-  const pin = guest ? (map === "books" ? guest.book_pin : guest.curiosity_pin) : null;
+  const guestPin = guest ? (map === "books" ? guest.book_pin : guest.curiosity_pin) : null;
   const pinLabel = useRef<HTMLDivElement>(null);
   const placePinLabel = useCallback((x: number, y: number, visible: boolean) => {
     const el = pinLabel.current;
@@ -61,6 +62,14 @@ export default function MapExperience() {
 
   const points = data[map];
   const showRoute = onRoute && route !== null;
+  // Explorers (no pin of their own on this map) start at the centre of the map's cloud.
+  const explorerPin = useMemo<Pin | null>(() => {
+    if (!points?.length) return null;
+    const n = points.length;
+    const c = points.reduce((a, p) => ({ x: a.x + p.x / n, y: a.y + p.y / n, z: a.z + p.z / n }), { x: 0, y: 0, z: 0 });
+    return { ...c, home_cluster: "", suggested: false };
+  }, [points]);
+  const pin = guestPin ?? (onMapPage ? explorerPin : null);
   const selected = selection?.map === map ? selection.point : null;
   const hovered = hover?.map === map ? hover.point : null;
   const activeLabel = selected?.cluster_label ?? null;   // hover must not reshuffle labels
@@ -112,8 +121,8 @@ export default function MapExperience() {
           </>
         )}
         {showRoute && <RouteLine route={route} active={activeStop} />}
-        {pin && guest && (
-          <group key={`${guest.guest_id}-${map}-${pin.x}`}>
+        {pin && (
+          <group key={`${guest?.guest_id ?? "explorer"}-${map}-${pin.x}`}>
             <GuestPin pin={pin} color={PIN_COLOR[map]} />
             <PinLabelProjector pin={pin} onFrame={placePinLabel} />
           </group>
@@ -143,6 +152,17 @@ export default function MapExperience() {
       )}
 
       {onMapPage && (
+        <Link
+          href="/"
+          aria-label="Back to the start"
+          className="fixed top-[max(1rem,env(safe-area-inset-top))] left-4 z-20 flex items-center gap-2 rounded-full border border-white/15 bg-ink/90 py-1.5 pr-3.5 pl-2 text-sm font-medium shadow-lg shadow-black/40 backdrop-blur-md hover:bg-ink"
+        >
+          <Logo variant="mark" size="sm" />
+          <span className="hidden sm:inline">Home</span>
+        </Link>
+      )}
+
+      {onMapPage && (
         <header className="pointer-events-none fixed inset-x-0 top-0 z-10 flex flex-col items-center gap-3 px-4 pt-[max(1rem,env(safe-area-inset-top))]">
           <MapSwitcher current={map} />
           <SearchBox
@@ -151,6 +171,12 @@ export default function MapExperience() {
             placeholder={map === "books" ? "Search books or authors" : "Search topics and papers"}
             onSelect={onSearch}
           />
+          {!guest && map === "books" && (
+            <Link href="/onboarding"
+              className="pointer-events-auto rounded-full bg-ink/80 px-3 py-1 text-xs text-white/70 backdrop-blur hover:text-white">
+              You&apos;re at the centre for now. <span className="text-coral">Pick 5 books</span> to place yourself
+            </Link>
+          )}
           {map === "knowledge" && (
             <Link
               href="/route"

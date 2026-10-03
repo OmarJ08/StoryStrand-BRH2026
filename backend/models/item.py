@@ -70,6 +70,19 @@ class ItemDetail(SearchHit):
     links: list[ItemLink] = []  # first is the primary "open" link
 
 
+class EstimateRequest(BaseModel):
+    query: str = Field(min_length=2, max_length=120)   # title, optionally with author
+
+
+class EstimatedBook(SearchHit):
+    """A book outside the dataset, placed on the Book Map by estimate (POST /api/books/estimate)."""
+    estimated: bool = True
+    description: str = ""
+    tags: list[str] = []
+    nearest_titles: list[str] = []   # the real books it landed closest to
+    found_online: bool = False       # False when Open Library had no match (qwen guessed alone)
+
+
 class GuestRequest(BaseModel):
     guest_id: UUID
     book_ids: list[str] = Field(min_length=5, max_length=5)

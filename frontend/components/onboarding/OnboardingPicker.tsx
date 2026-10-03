@@ -6,16 +6,21 @@ import { useEffect, useState } from "react";
 import SearchBox from "@/components/SearchBox";
 import { api } from "@/lib/api";
 import { getGuestId, saveGuest } from "@/lib/guest";
-import type { GuestResponse, SearchHit } from "@/lib/types";
+import type { EstimatedBook, GuestResponse, SearchHit } from "@/lib/types";
 import BackButton from "./BackButton";
 
 const PICKS = 5;
 
-/** Pick 5 books you loved: search for any title, or tap covers from the most-read books. */
+/**
+ * Pick 5 books you loved: search the library, tap covers from the most-read books, or add
+ * any other book, which the backend places on the map by estimate.
+ */
 export default function OnboardingPicker() {
   const router = useRouter();
   const [picks, setPicks] = useState<SearchHit[]>([]);
   const [popular, setPopular] = useState<SearchHit[] | null>(null);
+  const [placing, setPlacing] = useState<string[]>([]);     // queries being estimated
+  const [placed, setPlaced] = useState<{ book: EstimatedBook } | { error: string } | null>(null);
   const [status, setStatus] = useState<{ state: "idle" | "saving" } | { state: "error"; message: string }>(
     { state: "idle" },
   );
@@ -28,7 +33,21 @@ export default function OnboardingPicker() {
   const toggle = (book: SearchHit) =>
     setPicks((ps) => (ps.some((p) => p.id === book.id)
       ? ps.filter((p) => p.id !== book.id)
-      : ps.length < PICKS ? [...ps, book] : ps));
+      : ps.length + placing.length < PICKS ? [...ps, book] : ps));
+
+  // Books not in the library: qwen profiles them and the backend places them among the
+  // nearest real books. Each in-flight estimate holds a tray slot.
+  const estimate = (query: string) => {
+    if (picks.length + placing.length >= PICKS) return;
+    setPlacing((q) => [...q, query]);
+    api<EstimatedBook>("/api/books/estimate", { method: "POST", body: JSON.stringify({ query }) })
+      .then((book) => {
+        setPicks((ps) => (ps.some((p) => p.id === book.id) || ps.length >= PICKS ? ps : [...ps, book]));
+        setPlaced({ book });
+      })
+      .catch((e: Error) => setPlaced({ error: `Couldn't place “${query}”: ${e.message}` }))
+      .finally(() => setPlacing((q) => q.filter((x) => x !== query)));
+  };
 
   const dropPin = () => {
     setStatus({ state: "saving" });
@@ -50,9 +69,29 @@ export default function OnboardingPicker() {
         <h1 className="font-display text-2xl font-bold">Pick 5 books you loved</h1>
         <p className="mt-1 text-sm text-white/60">We&apos;ll drop your pin on the Book Map and show your reading DNA.</p>
         <div className="mt-4">
-          <SearchBox map="books" placeholder="Search any book or author" onSelect={(hit) => {
-            if (!picked(hit.id)) toggle(hit);
-          }} />
+          <SearchBox
+            map="books"
+            placeholder="Search any book or author"
+            onSelect={(hit) => {
+              if (!picked(hit.id)) toggle(hit);
+            }}
+            onText={estimate}
+            textLabel="Any book: add “{q}”"
+            textHint="Not in our library? We'll estimate where it sits on the map"
+          />
+          {placing.length > 0 && (
+            <p className="mt-2 text-xs text-white/60">Placing “{placing[0]}” on the map… (about 10 s)</p>
+          )}
+          {placed && placing.length === 0 && ("book" in placed ? (
+            <p className="mt-2 text-xs text-white/60">
+              Added <span className="text-white">{placed.book.title}</span>, estimated near{" "}
+              <span className="text-coral">{placed.book.cluster_label}</span>
+              {placed.book.nearest_titles.length > 0 && `, close to ${placed.book.nearest_titles.slice(0, 2).join(" and ")}`}
+              {!placed.book.found_online && " (not found online, so this is a guess from the title)"}.
+            </p>
+          ) : (
+            <p className="mt-2 text-xs text-coral">{placed.error}</p>
+          ))}
         </div>
 
         <div className="mt-4 min-h-0 flex-1 overflow-y-auto overscroll-contain pb-4">
@@ -82,17 +121,24 @@ export default function OnboardingPicker() {
       <div className="border-t border-white/10 bg-ink/95 px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
         <div className="mx-auto flex max-w-2xl items-center gap-3">
           <div className="flex flex-1 gap-2">
-            {Array.from({ length: PICKS }, (_, i) => picks[i]).map((p, i) => (
-              <button key={p?.id ?? `slot-${i}`} onClick={() => p && toggle(p)} disabled={!p}
-                aria-label={p ? `Remove ${p.title}` : `Empty slot ${i + 1}`}
-                className="relative aspect-[2/3] w-11 overflow-hidden rounded-md border border-dashed border-white/25 bg-white/5">
-                {p?.cover_url
-                  ? <Image src={p.cover_url} alt="" fill sizes="44px" className="object-cover" />
-                  : p && <span className="block p-1 text-[9px] leading-tight text-white/70">{p.title}</span>}
-              </button>
-            ))}
+            {Array.from({ length: PICKS }, (_, i) => picks[i]).map((p, i) => {
+              const pending = !p && i - picks.length < placing.length;
+              return (
+                <button key={p?.id ?? `slot-${i}`} onClick={() => p && toggle(p)} disabled={!p}
+                  aria-label={p ? `Remove ${p.title}` : pending ? "Placing a book" : `Empty slot ${i + 1}`}
+                  className={`relative aspect-[2/3] w-11 overflow-hidden rounded-md border border-dashed border-white/25 bg-white/5 ${
+                    pending ? "animate-pulse" : ""}`}>
+                  {p?.cover_url
+                    ? <Image src={p.cover_url} alt="" fill sizes="44px" className="object-cover" />
+                    : p && <span className="block p-1 text-[9px] leading-tight text-white/70">{p.title}</span>}
+                  {p && "estimated" in p && (
+                    <span className="absolute inset-x-0 bottom-0 bg-coral/90 text-center text-[8px] font-bold text-ink">EST.</span>
+                  )}
+                </button>
+              );
+            })}
           </div>
-          <button onClick={dropPin} disabled={picks.length !== PICKS || status.state === "saving"}
+          <button onClick={dropPin} disabled={picks.length !== PICKS || placing.length > 0 || status.state === "saving"}
             className="rounded-full bg-coral px-5 py-3 font-display font-semibold text-ink transition-opacity disabled:opacity-40">
             {status.state === "saving" ? "Dropping…" : picks.length === PICKS ? "Drop my pin" : `${picks.length}/${PICKS} picked`}
           </button>

@@ -10,14 +10,21 @@ interface Props {
   map: MapName;
   placeholder: string;
   onSelect: (hit: SearchHit) => void;
-  /** When set, the first suggestion is "Search by meaning" and picks the typed text itself. */
+  /** When set, the first suggestion picks the typed text itself (e.g. "Search by meaning"). */
   onText?: (text: string) => void;
+  /** Wording for that free-text row; {q} is replaced by the typed text. */
+  textLabel?: string;
+  textHint?: string;
 }
 
 type Option = { kind: "text"; text: string } | { kind: "hit"; hit: SearchHit };
 
 /** Type-ahead title/author search on one map (POST /api/search). */
-export default function SearchBox({ map, placeholder, onSelect, onText }: Props) {
+export default function SearchBox({
+  map, placeholder, onSelect, onText,
+  textLabel = "Search by meaning: “{q}”",
+  textHint = "Matches the closest topics, not just titles",
+}: Props) {
   const [query, setQuery] = useState("");
   const [result, setResult] = useState<{ query: string; hits: SearchHit[] } | null>(null);
   const [open, setOpen] = useState(false);
@@ -122,8 +129,8 @@ export default function SearchBox({ map, placeholder, onSelect, onText }: Props)
             >
               {option.kind === "text" ? (
                 <>
-                  <p className="truncate text-sm font-medium text-coral">Search by meaning: “{option.text}”</p>
-                  <p className="text-xs text-white/50">Matches the closest topics, not just titles</p>
+                  <p className="truncate text-sm font-medium text-coral">{textLabel.replace("{q}", option.text)}</p>
+                  <p className="text-xs text-white/50">{textHint}</p>
                 </>
               ) : (
                 <>

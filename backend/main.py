@@ -9,10 +9,11 @@ from fastapi.responses import FileResponse
 
 from backend.db.conn import get_conn
 from backend.embeddings import warm_in_background
+from backend.estimate import estimate_book
 from backend.guest import plan_guest, popular_books
-from backend.models.item import (GuestRequest, GuestResponse, ItemDetail, ItemLink, MapName,
-                                 MapPoint, RouteNotes, RouteRequest, RouteResponse, RouteVoice,
-                                 SearchHit, SearchRequest, VoiceClip)
+from backend.models.item import (EstimatedBook, EstimateRequest, GuestRequest, GuestResponse,
+                                 ItemDetail, ItemLink, MapName, MapPoint, RouteNotes, RouteRequest,
+                                 RouteResponse, RouteVoice, SearchHit, SearchRequest, VoiceClip)
 from backend.routing.graph import load_graph
 from backend.routing.notes import run_notes_job
 from backend.routing.service import plan_route
@@ -135,6 +136,13 @@ def item_detail(item_id: str) -> ItemDetail:
 def guest(req: GuestRequest) -> GuestResponse:
     """5 picked books -> taste centroid, Book Map pin, DNA panels, suggested curiosity pin."""
     return plan_guest(req)
+
+
+@app.post("/api/books/estimate")
+def books_estimate(req: EstimateRequest) -> EstimatedBook:
+    """Any book, even one not in the dataset: qwen profiles it and it is placed among the
+    nearest real books, so it can be one of the 5 onboarding picks."""
+    return estimate_book(req.query)
 
 
 @app.get("/api/books/popular")

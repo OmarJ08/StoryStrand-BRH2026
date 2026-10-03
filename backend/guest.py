@@ -66,6 +66,12 @@ def plan_guest(req: GuestRequest) -> GuestResponse:
         rows = conn.execute(
             f"SELECT {HIT_COLUMNS}, map, embedding, tags FROM items WHERE id = ANY(%s)", (req.book_ids,),
         ).fetchall()
+        # books placed by estimate (est:...) behave like Book Map picks, same column order
+        rows += conn.execute(
+            "SELECT id, 'book', title, cover_url, NULL::smallint, cluster_label, x, y, z, creators, "
+            "'books', embedding, tags FROM estimated_books WHERE id = ANY(%s)",
+            ([i for i in req.book_ids if i.startswith("est:")],),
+        ).fetchall()
         found = {r[0]: r for r in rows}
         bad = [i for i in req.book_ids if i not in found or found[i][10] != "books"]
         if bad:

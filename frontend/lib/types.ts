@@ -29,6 +29,15 @@ export interface ItemDetail extends SearchHit {
   links: { label: string; url: string }[];
 }
 
+/** POST /api/books/estimate: a book outside the dataset, placed by estimate. */
+export interface EstimatedBook extends SearchHit {
+  estimated: true;
+  description: string;
+  tags: string[];
+  nearest_titles: string[];
+  found_online: boolean;
+}
+
 export interface Pin {
   x: number;
   y: number;
