@@ -14,3 +14,8 @@ export interface MapPoint {
   id: string; type: ItemType; title: string; cover_url: string | null;
   difficulty: number | null; cluster_label: string; x: number; y: number; z: number;
 }
+
+/** One result from POST /api/search. */
+export interface SearchHit extends MapPoint {
+  creators: string[];
+}

@@ -9,7 +9,7 @@ const MAPS: { map: MapName; label: string }[] = [
 /** Flips between maps by route only; the Canvas lives in the layout, so it never unmounts. */
 export default function MapSwitcher({ current }: { current: MapName }) {
   return (
-    <nav className="glass pointer-events-auto flex rounded-full p-1 text-sm font-medium">
+    <nav className="pointer-events-auto flex rounded-full border border-white/15 bg-ink/90 p-1 text-sm font-medium shadow-lg shadow-black/40 backdrop-blur-md">
       {MAPS.map(({ map, label }) => (
         <Link
           key={map}
