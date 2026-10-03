@@ -1,16 +1,20 @@
 from contextlib import asynccontextmanager
 from functools import cache
 
-from fastapi import FastAPI, Response
+import httpx
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import FileResponse
 
 from backend.db.conn import get_conn
 from backend.embeddings import warm_in_background
-from backend.models.item import (MapName, MapPoint, RouteRequest, RouteResponse, SearchHit,
-                                 SearchRequest)
+from backend.models.item import (MapName, MapPoint, RouteNotes, RouteRequest, RouteResponse,
+                                 RouteVoice, SearchHit, SearchRequest, VoiceClip)
 from backend.routing.graph import load_graph
+from backend.routing.notes import run_notes_job
 from backend.routing.service import plan_route
+from backend.voice import VOICE, clip_path, ensure_clips
 
 
 @asynccontextmanager
@@ -89,6 +93,50 @@ def search(req: SearchRequest) -> list[SearchHit]:
 
 
 @app.post("/api/route")
-def route(req: RouteRequest) -> RouteResponse:
-    """Learning route on the Knowledge Map (Section 9.3): strict climb, soft fallback."""
-    return plan_route(req)
+def route(req: RouteRequest, background: BackgroundTasks) -> RouteResponse:
+    """Learning route on the Knowledge Map (Section 9.3): strict climb, soft fallback.
+    Tour-guide notes are generated afterwards; poll GET /api/route/{id}/notes."""
+    planned = plan_route(req)
+    background.add_task(run_notes_job, planned.route_id)
+    return planned
+
+
+def saved_notes(route_id: str) -> RouteNotes:
+    with get_conn() as conn:
+        row = conn.execute("SELECT notes FROM routes WHERE route_id = %s", (route_id,)).fetchone()
+    if row is None:
+        raise HTTPException(404, f"no route {route_id}")
+    notes = row[0] or {"status": "none"}
+    return RouteNotes(status=notes["status"], notes=notes.get("notes"))
+
+
+@app.get("/api/route/{route_id}/notes")
+def route_notes(route_id: str) -> RouteNotes:
+    return saved_notes(route_id)
+
+
+@app.post("/api/route/{route_id}/voice")
+def route_voice(route_id: str) -> RouteVoice:
+    """Grok Voice audio for a route's notes, one MP3 per stop, cached per route."""
+    notes = saved_notes(route_id)
+    if notes.status != "ready" or not notes.notes:
+        raise HTTPException(409, f"notes are {notes.status}; nothing to narrate yet")
+    try:
+        ensure_clips(route_id, notes.notes)
+    except httpx.HTTPError as e:
+        raise HTTPException(502, f"Grok Voice failed: {e}") from e
+    return RouteVoice(route_id=route_id, voice=VOICE, clips=[
+        VoiceClip(index=i, note=n, url=f"/api/route/{route_id}/voice/{i}.mp3")
+        for i, n in enumerate(notes.notes)])
+
+
+@app.get("/api/route/{route_id}/voice/{index}.mp3")
+def route_voice_clip(route_id: str, index: int) -> FileResponse:
+    try:
+        path = clip_path(route_id, index)
+    except ValueError as e:
+        raise HTTPException(404, str(e)) from e
+    if not path.exists():
+        raise HTTPException(404, "clip not generated; call POST /api/route/{id}/voice first")
+    return FileResponse(path, media_type="audio/mpeg",
+                        headers={"Cache-Control": "public, max-age=31536000, immutable"})

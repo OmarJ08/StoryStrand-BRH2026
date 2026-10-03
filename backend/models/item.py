@@ -82,12 +82,33 @@ class RouteStop(BaseModel):
     guide_note: Optional[str] = None           # filled by the tour-guide step later
 
 
+NotesStatus = Literal["pending", "ready", "none"]
+
+
 class RouteResponse(BaseModel):
     route_id: str
     map: MapName
     kind: Literal["learning"]
     relaxed: bool                               # True when the strict climb had no path
     stops: list[RouteStop]
+    notes_status: NotesStatus = "pending"       # notes are generated in the background
+
+
+class RouteNotes(BaseModel):
+    status: NotesStatus
+    notes: Optional[list[str]] = None
+
+
+class VoiceClip(BaseModel):
+    index: int
+    note: str
+    url: str                                    # relative to the API base
+
+
+class RouteVoice(BaseModel):
+    route_id: str
+    voice: str
+    clips: list[VoiceClip]
 
 
 def embedding_text(item: Item) -> str:

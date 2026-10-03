@@ -71,7 +71,7 @@ def plan_route(req: RouteRequest) -> RouteResponse:
         conn.execute(
             "INSERT INTO routes (route_id, guest_id, map, kind, stops, notes, relaxed) "
             "VALUES (%s, %s, 'knowledge', 'learning', %s, %s, %s)",
-            (route_id, req.guest_id, stop_ids, Jsonb(None), relaxed),
+            (route_id, req.guest_id, stop_ids, Jsonb({"status": "pending"}), relaxed),
         )
 
     return RouteResponse(

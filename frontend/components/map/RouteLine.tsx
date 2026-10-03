@@ -12,8 +12,11 @@ export function levelColor(level: number | null): Color {
   return LOW.clone().lerp(HIGH, ((level ?? 1) - 1) / 4);
 }
 
-/** The route as a line through its stops, coloured by level, with a ring at every stop. */
-export default function RouteLine({ route }: { route: RouteResponse }) {
+/**
+ * The route as a line through its stops, coloured by level, with a ring at every stop.
+ * The stop being narrated gets a larger ring and a filled centre.
+ */
+export default function RouteLine({ route, active }: { route: RouteResponse; active: number | null }) {
   const items = route.stops.map((s) => s.item);
   if (items.length < 2) return null;
   const points = items.map((p) => [p.x, p.y, p.z] as [number, number, number]);
@@ -28,12 +31,18 @@ export default function RouteLine({ route }: { route: RouteResponse }) {
         transparent
         depthTest={false}
       />
-      {items.map((p) => (
+      {items.map((p, i) => (
         <Billboard key={p.id} position={[p.x, p.y, p.z]}>
           <mesh renderOrder={3}>
-            <ringGeometry args={[0.16, 0.26, 32]} />
+            <ringGeometry args={i === active ? [0.24, 0.4, 40] : [0.16, 0.26, 32]} />
             <meshBasicMaterial color={levelColor(p.difficulty)} toneMapped={false} depthTest={false} transparent />
           </mesh>
+          {i === active && (
+            <mesh renderOrder={3}>
+              <circleGeometry args={[0.13, 32]} />
+              <meshBasicMaterial color="#ffffff" toneMapped={false} depthTest={false} transparent />
+            </mesh>
+          )}
         </Billboard>
       ))}
     </group>

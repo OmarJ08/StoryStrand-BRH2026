@@ -8,6 +8,8 @@ import { useScene } from "@/components/map/SceneContext";
 import { api } from "@/lib/api";
 import type { RouteEndpoint, RouteResponse, SearchHit } from "@/lib/types";
 import ClimbPanel from "./ClimbPanel";
+import { useNarration } from "./useNarration";
+import { useRoutePlayer } from "./useRoutePlayer";
 
 type Pick = { kind: "text"; text: string } | { kind: "item"; hit: SearchHit };
 
@@ -55,7 +57,22 @@ function Field({ label, pick, onPick, placeholder }: {
 
 /** Start + destination inputs; the route is drawn on the shared map via SceneContext. */
 export default function RoutePlanner() {
-  const { route, setRoute, setSelection, flyTo } = useScene();
+  const { route, setRoute, setSelection, flyTo, setActiveStop } = useScene();
+  const narration = useNarration(route);
+  const player = useRoutePlayer(
+    narration.status === "ready" ? narration.clips : null,
+    (i) => {                                   // each stop: fly there, buzz (Android), highlight
+      if (!route) return;
+      setSelection(null);
+      setActiveStop(i);
+      flyTo(pointFocus(route.stops[i].item));
+      if ("vibrate" in navigator) navigator.vibrate(60);
+    },
+    () => {                                    // done: step back to see the whole climb
+      setActiveStop(null);
+      if (route) flyTo(pointsFocus(route.stops.map((s) => s.item)));
+    },
+  );
   const [start, setStart] = useState<Pick | null>(null);
   const [destination, setDestination] = useState<Pick | null>(null);
   const [editing, setEditing] = useState(false);
@@ -74,6 +91,7 @@ export default function RoutePlanner() {
         setRoute(r);
         setEditing(false);
         setSelection(null);
+        setActiveStop(null);
         flyTo(pointsFocus(r.stops.map((s) => s.item)));
         setStatus({ state: "idle" });
       })
@@ -123,6 +141,8 @@ export default function RoutePlanner() {
       {route && (
         <ClimbPanel
           route={route}
+          narration={narration}
+          player={player}
           onStop={(item) => {
             setSelection({ map: "knowledge", point: item });
             flyTo(pointFocus(item));
