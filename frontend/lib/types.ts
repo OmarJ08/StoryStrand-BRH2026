@@ -19,3 +19,21 @@ export interface MapPoint {
 export interface SearchHit extends MapPoint {
   creators: string[];
 }
+
+/** A route start or destination: typed text (matched by meaning) or a known item. */
+export type RouteEndpoint = { text: string } | { item_id: string };
+
+export interface RouteStop {
+  item: SearchHit;
+  step_similarity: number | null;
+  guide_note: string | null;
+}
+
+/** POST /api/route response (Section 12). */
+export interface RouteResponse {
+  route_id: string;
+  map: MapName;
+  kind: "learning";
+  relaxed: boolean;
+  stops: RouteStop[];
+}

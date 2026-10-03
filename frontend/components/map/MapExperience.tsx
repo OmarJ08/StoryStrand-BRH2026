@@ -2,30 +2,38 @@
 
 import { OrbitControls } from "@react-three/drei";
 import { Canvas } from "@react-three/fiber";
-import { useParams } from "next/navigation";
+import Link from "next/link";
+import { useParams, usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import SearchBox from "@/components/SearchBox";
 import type { MapName, MapPoint, SearchHit } from "@/lib/types";
-import CameraRig, { type Focus } from "./CameraRig";
+import CameraRig, { pointFocus, ViewShift } from "./CameraRig";
 import { clusterPalette } from "./colors";
 import ItemSheet from "./ItemSheet";
 import { centroidsOf, LabelOverlay, LabelProjector } from "./Labels";
 import MapSwitcher from "./MapSwitcher";
 import PointCloud from "./PointCloud";
 import PointPicker from "./PointPicker";
+import RouteLine from "./RouteLine";
+import { useScene } from "./SceneContext";
 
-/** The persistent map scene: lives in app/map/layout.tsx so switching maps never remounts it. */
+const ROUTE_VIEW_SHIFT = 0.14;   // lift the route into the band between header and climb panel
+
+/**
+ * The persistent map scene: lives in app/(scene)/layout.tsx so moving between /map/* and
+ * /route never remounts it. /route always shows the Knowledge Map.
+ */
 export default function MapExperience() {
-  const params = useParams<{ map: string }>();
-  const map: MapName = params.map === "knowledge" ? "knowledge" : "books";
+  const params = useParams<{ map?: string }>();
+  const onRoute = usePathname() === "/route";
+  const map: MapName = onRoute || params.map === "knowledge" ? "knowledge" : "books";
+  const { route, selection, setSelection, focus, flyTo } = useScene();
 
   const [data, setData] = useState<Partial<Record<MapName, MapPoint[]>>>({});
   const [error, setError] = useState<{ map: MapName; message: string } | null>(null);
-  const [selection, setSelection] = useState<{ map: MapName; point: MapPoint } | null>(null);
   const [hover, setHover] = useState<{ map: MapName; point: MapPoint } | null>(null);
-  const [autoRotate, setAutoRotate] = useState(true);
-  const [focus, setFocus] = useState<Focus | null>(null);
+  const [interacted, setInteracted] = useState(false);
 
   useEffect(() => {
     if (data[map]) return;
@@ -35,15 +43,23 @@ export default function MapExperience() {
   }, [map, data]);
 
   const points = data[map];
+  const showRoute = onRoute && route !== null;
   const selected = selection?.map === map ? selection.point : null;
   const hovered = hover?.map === map ? hover.point : null;
   const activeLabel = selected?.cluster_label ?? null;   // hover must not reshuffle labels
+  const keepClear = useMemo(
+    () => [
+      ...(selected ? [selected] : []),
+      ...(showRoute && route ? route.stops.map((s) => s.item) : []),
+    ],
+    [selected, showRoute, route],
+  );
   const palette = useMemo(() => clusterPalette((points ?? []).map((p) => p.cluster_label)), [points]);
   const centroids = useMemo(() => centroidsOf(points ?? []), [points]);
   const labelRefs = useRef<(HTMLDivElement | null)[]>([]);
   const onPick = useCallback(
     (point: MapPoint | null) => setSelection(point ? { map, point } : null),
-    [map],
+    [map, setSelection],
   );
   const onHover = useCallback(
     (point: MapPoint | null) => setHover(point ? { map, point } : null),
@@ -51,8 +67,7 @@ export default function MapExperience() {
   );
   const onSearch = (hit: SearchHit) => {
     setSelection({ map, point: hit });
-    setFocus((f) => ({ point: hit, key: (f?.key ?? 0) + 1 }));
-    setAutoRotate(false);
+    flyTo(pointFocus(hit));
   };
 
   return (
@@ -66,16 +81,19 @@ export default function MapExperience() {
               palette={palette}
               selected={selected}
               hovered={hovered}
+              dimmed={showRoute}
             />
             <LabelProjector
               centroids={centroids}
               refs={labelRefs}
               active={activeLabel}
-              keepClear={selected}
+              keepClear={keepClear}
             />
             <PointPicker points={points} onPick={onPick} onHover={onHover} />
           </>
         )}
+        {showRoute && <RouteLine route={route} />}
+        <ViewShift fraction={showRoute ? ROUTE_VIEW_SHIFT : 0} />
         <CameraRig map={map} focus={focus} />
         <OrbitControls
           makeDefault
@@ -83,23 +101,33 @@ export default function MapExperience() {
           enablePan={false}
           minDistance={6}
           maxDistance={60}
-          autoRotate={autoRotate}
+          autoRotate={!interacted && !focus}
           autoRotateSpeed={0.4}
-          onStart={() => setAutoRotate(false)}
+          onStart={() => setInteracted(true)}
         />
       </Canvas>
 
       <LabelOverlay centroids={centroids} palette={palette} refs={labelRefs} active={activeLabel} />
 
-      <header className="pointer-events-none fixed inset-x-0 top-0 z-10 flex flex-col items-center gap-3 px-4 pt-[max(1rem,env(safe-area-inset-top))]">
-        <MapSwitcher current={map} />
-        <SearchBox
-          key={map}
-          map={map}
-          placeholder={map === "books" ? "Search books or authors" : "Search topics and papers"}
-          onSelect={onSearch}
-        />
-      </header>
+      {!onRoute && (
+        <header className="pointer-events-none fixed inset-x-0 top-0 z-10 flex flex-col items-center gap-3 px-4 pt-[max(1rem,env(safe-area-inset-top))]">
+          <MapSwitcher current={map} />
+          <SearchBox
+            key={map}
+            map={map}
+            placeholder={map === "books" ? "Search books or authors" : "Search topics and papers"}
+            onSelect={onSearch}
+          />
+          {map === "knowledge" && (
+            <Link
+              href="/route"
+              className="pointer-events-auto rounded-full bg-coral px-4 py-1.5 font-display text-sm font-semibold text-ink shadow-lg shadow-black/40"
+            >
+              Plan a learning route
+            </Link>
+          )}
+        </header>
+      )}
 
       {!points && (
         <p className="pointer-events-none fixed inset-0 z-10 flex items-center justify-center text-sm text-white/60">

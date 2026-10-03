@@ -38,14 +38,48 @@ interface Flight {
   pullBack: number;
 }
 
-export interface Focus {
-  point: MapPoint;
+/** Where to fly: a centre and how far from it the camera should settle. */
+export interface FocusTarget {
+  x: number;
+  y: number;
+  z: number;
+  distance: number;
+}
+
+export interface Focus extends FocusTarget {
   key: number;           // bumps on every request, so picking the same point twice re-flies
+}
+
+export const pointFocus = (p: MapPoint): FocusTarget =>
+  ({ x: p.x, y: p.y, z: p.z, distance: FOCUS_DISTANCE });
+
+/** Frames a set of points (e.g. route stops): their centre, far enough back to see all. */
+export function pointsFocus(ps: MapPoint[]): FocusTarget {
+  const c = ps.reduce((a, p) => a.add(new Vector3(p.x, p.y, p.z)), new Vector3()).divideScalar(ps.length);
+  const spread = Math.max(...ps.map((p) => c.distanceTo(new Vector3(p.x, p.y, p.z))));
+  return { x: c.x, y: c.y, z: c.z, distance: Math.max(12, spread * 3.8) };
+}
+
+/**
+ * Shifts the rendered view up by a fraction of the screen height, so content centred on
+ * the orbit target sits above a bottom panel. Uses the projection matrix, so picking and
+ * label projection stay consistent with what is drawn.
+ */
+export function ViewShift({ fraction }: { fraction: number }) {
+  const camera = useThree((s) => s.camera);
+  const size = useThree((s) => s.size);
+  useEffect(() => {
+    if (!(camera instanceof PerspectiveCamera)) return;
+    if (fraction === 0) camera.clearViewOffset();
+    else camera.setViewOffset(size.width, size.height, 0, fraction * size.height, size.width, size.height);
+    camera.updateProjectionMatrix();
+  }, [camera, size, fraction]);
+  return null;
 }
 
 /**
  * Frames the map for the screen on load, plays map switches as a "portal jump" (pull back,
- * swoop in, recentred on the map), and flies to a focused point, e.g. a search result.
+ * swoop in, recentred on the map), and flies to a focus: a search result or a whole route.
  */
 export default function CameraRig({ map, focus }: { map: MapName; focus: Focus | null }) {
   const flight = useRef<Flight | null>(null);
@@ -90,8 +124,8 @@ export default function CameraRig({ map, focus }: { map: MapName; focus: Focus |
       flight.current = req === "portal"
         ? { ...base, seconds: FLIGHT_SECONDS, toTarget: ORIGIN.clone(),
             toDist: base.fromDist, pullBack: PULL_BACK }
-        : { ...base, seconds: FOCUS_SECONDS, toTarget: new Vector3(req.point.x, req.point.y, req.point.z),
-            toDist: FOCUS_DISTANCE, pullBack: 0.25 };
+        : { ...base, seconds: FOCUS_SECONDS, toTarget: new Vector3(req.x, req.y, req.z),
+            toDist: req.distance, pullBack: 0.25 };
     }
 
     const f = flight.current;
