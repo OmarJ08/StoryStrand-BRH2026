@@ -5,8 +5,8 @@ import { useLayoutEffect, useMemo, useRef } from "react";
 import { Color, IcosahedronGeometry, InstancedMesh, Object3D } from "three";
 import type { MapName, MapPoint } from "@/lib/types";
 
-const BOOK_SIZE = 0.08;
-const KNOWLEDGE_SIZE = 0.06;
+const BOOK_SIZE = 0.055;
+const KNOWLEDGE_SIZE = 0.045;
 
 /** Knowledge points grow and brighten with difficulty (elevation); level 5 is ~1.7x level 1. */
 function sizeOf(map: MapName, p: MapPoint): number {
