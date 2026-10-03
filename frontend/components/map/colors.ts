@@ -13,7 +13,7 @@ export function clusterPalette(labels: string[]): Map<string, Color> {
   return new Map(
     sorted.map((label, i) => [
       label,
-      new Color().setHSL((TEAL_HUE + i * GOLDEN) % 1, 0.82, i % 2 === 0 ? 0.56 : 0.7),
+      new Color().setHSL((TEAL_HUE + i * GOLDEN) % 1, 0.92, i % 2 === 0 ? 0.52 : 0.72),
     ]),
   );
 }
