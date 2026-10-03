@@ -16,10 +16,11 @@ from backend.guest import plan_guest, popular_books
 from backend.models.item import (BridgeLearnRequest, EstimatedBook, EstimateRequest, GuestRequest,
                                  GuestResponse, ItemDetail, ItemLink, MapName, MapPoint, RouteNotes,
                                  RouteRequest, RouteResponse, RouteVoice, SearchHit, SearchRequest,
-                                 TrafficResponse, VoiceClip)
+                                 SimulationState, TrafficResponse, VoiceClip)
 from backend.routing.graph import load_graph
 from backend.routing.notes import run_notes_job
 from backend.routing.service import plan_route
+from backend.simulator import simulator
 from backend.voice import VOICE, clip_path, ensure_clips
 
 
@@ -187,8 +188,20 @@ def bridge_learn(req: BridgeLearnRequest, background: BackgroundTasks) -> RouteR
 @app.get("/api/traffic")
 def get_traffic(map: MapName) -> TrafficResponse:
     """Visits per neighborhood over the last 30 minutes, plus the last few seconds for the
-    live ping; simulated_visits > 0 means the UI must label the layer as simulated."""
-    return traffic(map)
+    live ping; simulated_visits > 0 means the UI must label the layer as simulated.
+    Simulated events count only while the simulation switch is on."""
+    return traffic(map, include_simulated=simulator.running)
+
+
+@app.get("/api/simulation")
+def get_simulation() -> SimulationState:
+    return SimulationState(running=simulator.running)
+
+
+@app.post("/api/simulation")
+def set_simulation(req: SimulationState) -> SimulationState:
+    """Demo switch (hidden on the home page): start or stop simulated traffic."""
+    return SimulationState(running=simulator.set(req.running))
 
 
 def saved_notes(route_id: str) -> RouteNotes:

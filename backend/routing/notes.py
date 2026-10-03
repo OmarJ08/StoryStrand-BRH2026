@@ -15,7 +15,8 @@ from backend.db.conn import get_conn
 
 OLLAMA = "http://localhost:11434/api/chat"
 MODEL = "qwen3.5:9b"
-TIMEOUT_S = 25
+TIMEOUT_S = 45
+ATTEMPTS = 3
 MAX_CHARS = 240
 MAX_SENTENCES = 2
 DESCRIPTION_CHARS = 300
@@ -46,6 +47,22 @@ Rules:
   level,", "With that in hand,", and "Finally," for the last stop). Vary the transitions.
 - Plain spoken English: no lists, markdown or emojis.
 Return JSON only: {{"notes": ["note for stop 1", "note for stop 2", ...]}}"""
+
+
+def shorten(note: str) -> str:
+    """Fit a note to the limits without asking the model again: keep whole sentences while
+    they fit, else cut at a word boundary. qwen often overshoots by a few words."""
+    note = note.strip()
+    ends = [m.end() for m in SENTENCE_END.finditer(note)]
+    if len(ends) > MAX_SENTENCES:
+        note = note[:ends[MAX_SENTENCES - 1]]
+        ends = ends[:MAX_SENTENCES]
+    while len(note) > MAX_CHARS and len(ends) > 1:
+        ends.pop()
+        note = note[:ends[-1]]
+    if len(note) > MAX_CHARS:
+        note = note[:MAX_CHARS - 1].rsplit(" ", 1)[0].rstrip(",;:") + "."
+    return note
 
 
 def problems(notes: object, n_stops: int) -> list[str]:
@@ -116,12 +133,14 @@ def describe(stops: list[dict]) -> str:
 
 
 def generate(stops: list[dict], context: str | None = None) -> tuple[list[str] | None, str]:
-    """Notes for the stops, or (None, reason). One retry on a rule violation.
+    """Notes for the stops, or (None, reason). Overlong notes are trimmed locally; other rule
+    violations (wrong count, banned words) are sent back for another try, up to ATTEMPTS.
     context: optional framing for the guide, e.g. the book a bridge route starts from."""
     user = f"{context}\n\n{describe(stops)}" if context else describe(stops)
     messages = [{"role": "system", "content": SYSTEM}, {"role": "user", "content": user}]
     deadline = time.monotonic() + TIMEOUT_S
-    for attempt in range(2):
+    found: list[str] = []
+    for attempt in range(ATTEMPTS):
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             return None, "timeout"
@@ -136,10 +155,12 @@ def generate(stops: list[dict], context: str | None = None) -> tuple[list[str] |
             return None, "timeout"
         except (httpx.HTTPError, ValueError, KeyError, AttributeError) as e:
             return None, f"ollama error: {e}"
+        if isinstance(notes, list) and all(isinstance(t, str) for t in notes):
+            notes = [shorten(n) for n in notes]
         found = problems(notes, len(stops))
         if not found:
-            return add_transitions([n.strip() for n in notes], [s["difficulty"] for s in stops]), "ok"
-        if attempt == 0:
+            return add_transitions(notes, [s["difficulty"] for s in stops]), "ok"
+        if attempt < ATTEMPTS - 1:
             messages += [{"role": "assistant", "content": content},
                          {"role": "user", "content": "Fix these problems and return the full JSON again: "
                                                      + "; ".join(found)}]

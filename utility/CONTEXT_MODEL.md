@@ -67,6 +67,7 @@ storystrand-brh2026/            (git repo, GitHub OmarJ08/storystrand-brh2026)
     estimate.py                  any-book estimate (Open Library + qwen + BGE-M3 + kNN placement)
     bridge.py                    "Learn the real science": concepts -> snaps -> strict route
     events.py                    event logging + traffic query
+    simulator.py                 simulated traffic (thread behind /api/simulation, also the CLI)
     voice.py                     Grok TTS + disk cache
     routing/
       knowledge_cost.py          allowed() strict rule, edge_cost() soft fallback
@@ -158,7 +159,8 @@ Human Spaceflight Systems.
 | `POST /api/guest {guest_id, book_ids[5]}` | ids may be `book:*` or `est:*`. Returns picks, book_pin, curiosity_pin (null unless ≥ 2 sci-fi picks), DNA per map, scifi_picks. |
 | `POST /api/route {start, destination}` | Each endpoint is `{item_id}` or `{text}`. Returns route id, stops (with difficulty), relaxed flag; kicks off notes in the background. |
 | `POST /api/bridge/learn {book_id, guest_id?, max_stops=5}` | "Learn the real science": same shape as /api/route with `kind: "bridge"`, `book`, `concepts`. 422 if the book draws on too little space science. |
-| `GET /api/traffic?map=` | Visits per neighborhood (30 min, continuous aggregate), `recent` (15 s), `real_visits`, `simulated_visits`. |
+| `GET /api/traffic?map=` | Visits per neighborhood (30 min, continuous aggregate), `recent` (15 s), `real_visits`, `simulated_visits`. Simulated events count only while the simulation is on. |
+| `GET/POST /api/simulation {running}` | Demo switch for the in-API traffic simulator (hidden dot, bottom right of the home page). |
 | `GET /api/route/{id}/notes` | Notes status/result. |
 | `POST /api/route/{id}/voice` / `GET /api/route/{id}/voice/{i}.mp3` | Synthesize/cache and fetch narration clips. |
 
@@ -182,8 +184,9 @@ Human Spaceflight Systems.
   ready notes are reused. Notes get a context line naming the book.
   Demo books: The Martian, Ender's Game, Rendezvous with Rama, Contact, Red Mars.
 - **Events / traffic**: search, stop_click (item sheet open), route (per stop) and learn events are
-  written to `events` in background tasks. `scripts/simulate_traffic.py` adds `simulated = true`
-  events; the map shows breathing glows + pings per neighborhood and a "simulated" badge.
+  written to `events` in background tasks. The simulator (`backend/simulator.py`, toggled by the
+  hidden home-page switch) adds `simulated = true` events; the map shows breathing glows + pings
+  per neighborhood and a "simulated" badge.
 - **Notes**: one Ollama JSON call for all stops, ≤ 2 sentences/240 chars, banned words
   (delve, tapestry, realm, embark, journey, ...), retry once, then spoken transitions added.
 
@@ -216,7 +219,8 @@ colour mark on ink. Source: the "StoryStrand logo variants" design sheet (Design
 uvicorn backend.main:app --port 8000
 ngrok http 8000 --url=remodeler-jitters-cradling.ngrok-free.dev
 ollama serve          # qwen3.5:9b pulled
-python scripts/simulate_traffic.py      # demo traffic (simulated = true), Ctrl-C to stop
+# demo traffic: tap the faint dot at the bottom right of the home page
+# (or from a terminal: python -m scripts.simulate_traffic)
 
 # frontend
 cd frontend && npm install && npm run dev      # NEXT_PUBLIC_API_URL in frontend/.env.local

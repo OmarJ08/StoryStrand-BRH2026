@@ -85,6 +85,11 @@ export interface RouteResponse {
   concepts: string[];
 }
 
+/** GET/POST /api/simulation: the demo's simulated-traffic switch */
+export interface SimulationState {
+  running: boolean;
+}
+
 /** GET /api/traffic?map= */
 export interface NeighborhoodTraffic {
   label: string;

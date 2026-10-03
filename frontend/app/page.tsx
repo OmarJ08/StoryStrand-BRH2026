@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Logo from "@/components/Logo";
+import SimulationSwitch from "@/components/SimulationSwitch";
 
 /** Starting screen: the brand, the pitch, and the two ways in. */
 export default function Home() {
@@ -21,6 +22,7 @@ export default function Home() {
           or just explore the map →
         </Link>
       </div>
+      <SimulationSwitch />
     </main>
   );
 }

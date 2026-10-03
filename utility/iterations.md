@@ -160,3 +160,10 @@ their changes are described here without hashes.
 | `scripts/simulate_traffic.py`: `simulated = true` events every ~3 s (~8 per burst) across all 30 neighborhoods, weighted by √size × a drifting random-walk popularity, with occasional 6× "surges"; `--backfill` minutes of history at start. | Activity on both maps during judging; drifting/surging weights make the pulses move around instead of sitting still. |
 | `components/map/Traffic.tsx`: `useTraffic` polls every 5 s (map pages only, tab visible); `TrafficPulse` draws a breathing glow per neighborhood (size ∝ √visits) and rings that ping for fresh visits, spread over the poll interval; two instanced draw calls. `TrafficBadge`: "Live traffic · N visits in 30 min · SIMULATED". | Neighborhoods visibly pulse; the label is honest about simulated data. |
 | Glow drawn first in the opaque pass with no depth test (dots paint over it); rings drawn on top and kept small (≤ ~4 units). | First version washed the cloud centre out to white and the rings spanned half the map. |
+| Simulator moved into `backend/simulator.py` (daemon thread) with `GET/POST /api/simulation`; hidden switch (faint dot, bottom right of the home page) toggles it. While off, `/api/traffic` counts only real events, straight from the hypertable. `scripts/simulate_traffic.py` is now a thin CLI (`python -m scripts.simulate_traffic`). | Demo control without a terminal; turning it off clears the pulses and the "simulated" badge immediately instead of after 30 minutes. A standalone `nohup` run had also died silently when its shell closed. |
+
+## 16. Narration reliability
+
+| Change | Why |
+|---|---|
+| Notes: overlong notes are trimmed locally at a sentence boundary (`shorten()`); up to 3 attempts; job timeout 25 → 45 s. Frontend waits up to 60 s for notes (was 30). | A route on Vercel showed "No narration": qwen returned 4 notes for 5 stops and two over 240 chars, twice; another route hit the 25 s timeout. Not a Vercel issue. Re-running both failed routes with the fix gave ready notes. |
