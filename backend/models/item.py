@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Literal, Optional
 from uuid import UUID
 
@@ -172,6 +173,35 @@ class NeighborhoodTraffic(BaseModel):
 
 class SimulationState(BaseModel):
     running: bool
+
+
+class Portal(BaseModel):
+    """GET /api/portals?map=: a mutual best match between a book and a knowledge item.
+    here is on the requested map, there on the other one."""
+    similarity: float
+    here: MapPoint
+    there: MapPoint
+    there_map: MapName
+
+
+class DbStats(BaseModel):
+    """GET /api/stats: live Tiger numbers for the "Under the hood" panel."""
+    vector_search_ms: float              # EXPLAIN ANALYZE execution time, top-10 DiskANN search
+    vector_search_roundtrip_ms: float    # same query timed from the API (includes network)
+    vector_index: Optional[str]          # index the search used, from the query plan
+    books: int
+    knowledge: int
+    vectors: int
+    vector_dims: int
+    portals: int
+    events: int
+    chunks: int
+    compressed_chunks: int
+    compression_ratio: Optional[float]   # before / after bytes, None until a chunk is compressed
+    cagg_last_refresh: Optional[datetime]
+    cagg_refresh_ms: Optional[float]
+    cagg_status: Optional[str]
+    cagg_next_refresh: Optional[datetime]
 
 
 class TrafficResponse(BaseModel):

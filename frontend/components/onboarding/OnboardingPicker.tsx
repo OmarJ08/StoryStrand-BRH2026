@@ -4,12 +4,14 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import SearchBox from "@/components/SearchBox";
-import { api } from "@/lib/api";
+import { api, liveOrBaked } from "@/lib/api";
 import { getGuestId, saveGuest } from "@/lib/guest";
+import { PRESETS } from "@/lib/presets";
 import type { EstimatedBook, GuestResponse, SearchHit } from "@/lib/types";
 import BackButton from "./BackButton";
 
 const PICKS = 5;
+const LIVE_TIMEOUT_MS = 3000;   // presets fall back to their baked guest after this
 
 /**
  * Pick 5 books you loved: search the library, tap covers from the most-read books, or add
@@ -26,7 +28,8 @@ export default function OnboardingPicker() {
   );
 
   useEffect(() => {
-    api<SearchHit[]>("/api/books/popular?limit=36").then(setPopular).catch(() => setPopular([]));
+    liveOrBaked(api<SearchHit[]>("/api/books/popular?limit=36"), "popular.json", LIVE_TIMEOUT_MS)
+      .then(setPopular).catch(() => setPopular([]));
   }, []);
 
   const picked = (id: string) => picks.some((p) => p.id === id);
@@ -49,18 +52,21 @@ export default function OnboardingPicker() {
       .finally(() => setPlacing((q) => q.filter((x) => x !== query)));
   };
 
-  const dropPin = () => {
+  const placeGuest = (bookIds: readonly string[], baked?: string) => {
     setStatus({ state: "saving" });
-    api<GuestResponse>("/api/guest", {
+    const guestId = getGuestId();
+    const live = api<GuestResponse>("/api/guest", {
       method: "POST",
-      body: JSON.stringify({ guest_id: getGuestId(), book_ids: picks.map((p) => p.id) }),
-    })
+      body: JSON.stringify({ guest_id: guestId, book_ids: bookIds }),
+    });
+    (baked ? liveOrBaked(live, baked, LIVE_TIMEOUT_MS) : live)
       .then((guest) => {
-        saveGuest(guest);
+        saveGuest({ ...guest, guest_id: guestId });
         router.push("/onboarding/reveal");
       })
       .catch((e: Error) => setStatus({ state: "error", message: e.message }));
   };
+  const dropPin = () => placeGuest(picks.map((p) => p.id));
 
   return (
     <div className="fixed inset-0 z-20 flex flex-col bg-ink/95">
@@ -68,6 +74,16 @@ export default function OnboardingPicker() {
       <div className="mx-auto flex w-full max-w-2xl min-h-0 flex-1 flex-col px-4 pt-[max(4.25rem,calc(env(safe-area-inset-top)+3rem))]">
         <h1 className="font-display text-2xl font-bold">Pick 5 books you loved</h1>
         <p className="mt-1 text-sm text-muted">We&apos;ll drop your pin on the Book Map and show your reading DNA.</p>
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <span className="text-sm text-muted">Quick pick:</span>
+          {PRESETS.map((p) => (
+            <button key={p.key} onClick={() => placeGuest(p.ids, `guest-${p.key}.json`)}
+              disabled={status.state === "saving"}
+              className="rounded-full border border-line bg-surface px-4 py-1.5 text-sm font-medium hover:border-coral disabled:cursor-wait">
+              {p.label}
+            </button>
+          ))}
+        </div>
         <div className="mt-4">
           <SearchBox
             map="books"

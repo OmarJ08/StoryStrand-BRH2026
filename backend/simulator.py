@@ -29,6 +29,7 @@ SURGE_TICKS = (8, 20)
 INTERVAL_S = 3.0            # mean seconds between bursts
 BURST = 8.0                 # mean events per burst
 BACKFILL_MIN = 15           # history inserted on start when the 30-min window has none
+RECONNECT_S = 3.0
 
 
 class Neighborhood:
@@ -100,19 +101,23 @@ def run(stop: threading.Event, interval: float = INTERVAL_S, burst: float = BURS
             insert(conn, history)
             log(f"[sim] backfilled {len(history)} events over {backfill_min} min")
 
-        while not stop.is_set():
-            for h in hoods:
-                h.tick()
-            if random.random() < SURGE_CHANCE:
-                h = random.choice(hoods)
-                h.surge = random.randint(*SURGE_TICKS)
-                log(f"[sim] surge: {h.map} / {h.label}")
-            n = max(1, round(random.gauss(burst, burst / 3)))
-            try:
-                insert(conn, make_events(hoods, n, datetime.now(timezone.utc)))
-            except psycopg.OperationalError as e:   # dropped connection: report and keep going
-                log(f"[sim] insert failed: {e}")
-            stop.wait(interval * random.uniform(0.6, 1.4))
+    while not stop.is_set():
+        try:
+            with get_conn() as conn:
+                conn.autocommit = True
+                while not stop.is_set():
+                    for h in hoods:
+                        h.tick()
+                    if random.random() < SURGE_CHANCE:
+                        h = random.choice(hoods)
+                        h.surge = random.randint(*SURGE_TICKS)
+                        log(f"[sim] surge: {h.map} / {h.label}")
+                    n = max(1, round(random.gauss(burst, burst / 3)))
+                    insert(conn, make_events(hoods, n, datetime.now(timezone.utc)))
+                    stop.wait(interval * random.uniform(0.6, 1.4))
+        except psycopg.OperationalError as e:   # dropped connection: reconnect and carry on
+            log(f"[sim] connection lost ({e}); reconnecting")
+            stop.wait(RECONNECT_S)
     log("[sim] off")
 
 

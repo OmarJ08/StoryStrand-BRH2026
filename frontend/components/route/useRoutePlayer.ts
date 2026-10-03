@@ -58,7 +58,7 @@ export function useRoutePlayer(
     current.current = i;
     latest.current.onStop(i);
     a.src = list[i];
-    void a.play();
+    a.play().catch(() => {});   // a pause() during loading (e.g. a new route) aborts play()
     setState({ index: i, playing: true });
   };
 
@@ -85,7 +85,7 @@ export function useRoutePlayer(
       setState((s) => s && { ...s, playing: false });
     },
     resume: () => {
-      void shared?.play();
+      shared?.play().catch(() => {});
       setState((s) => s && { ...s, playing: true });
     },
     stop: () => {

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import SearchBox from "@/components/SearchBox";
 import { pointFocus, pointsFocus } from "@/components/map/CameraRig";
+import { liftedPoint } from "@/components/map/RouteLine";
 import { useScene } from "@/components/map/SceneContext";
 import { api } from "@/lib/api";
 import type { RouteEndpoint, RouteResponse, SearchHit } from "@/lib/types";
@@ -65,12 +66,12 @@ export default function RoutePlanner() {
       if (!route) return;
       setSelection(null);
       setActiveStop(i);
-      flyTo(pointFocus(route.stops[i].item));
+      flyTo(pointFocus(liftedPoint(route.stops[i].item)));
       if ("vibrate" in navigator) navigator.vibrate(60);
     },
     () => {                                    // done: step back to see the whole climb
       setActiveStop(null);
-      if (route) flyTo(pointsFocus(route.stops.map((s) => s.item)));
+      if (route) flyTo(pointsFocus(route.stops.map((s) => liftedPoint(s.item))));
     },
   );
   // "Learn the real science" asked for a hands-free tour: start once the clips are in
@@ -101,7 +102,7 @@ export default function RoutePlanner() {
         setEditing(false);
         setSelection(null);
         setActiveStop(null);
-        flyTo(pointsFocus(r.stops.map((s) => s.item)));
+        flyTo(pointsFocus(r.stops.map((s) => liftedPoint(s.item))));
         setStatus({ state: "idle" });
       })
       .catch((e: Error) => setStatus({ state: "error", message: e.message }));

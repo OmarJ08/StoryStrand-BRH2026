@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import type { Color } from "three";
 import { api } from "@/lib/api";
-import type { ItemDetail, ItemType, MapPoint } from "@/lib/types";
+import type { ItemDetail, ItemType, MapPoint, Portal } from "@/lib/types";
 
 function typeLabel(type: ItemType): string {
   switch (type) {
@@ -54,6 +54,29 @@ interface Props {
   onClose: () => void;
   /** Books only: build the "Learn the real science" route and take the user there. */
   onLearn?: (book: MapPoint) => Promise<void>;
+  /** Portals from this point to the other map; tapping one flies there. */
+  portals?: Portal[];
+  onPortal?: (portal: Portal) => void;
+}
+
+function PortalLinks({ portals, onPortal }: { portals: Portal[]; onPortal: (p: Portal) => void }) {
+  return (
+    <div className="mt-4 space-y-2">
+      {portals.map((p) => (
+        <button key={p.there.id} onClick={() => onPortal(p)}
+          className="flex w-full items-center gap-3 rounded-2xl border border-[#f2c14e]/60 px-4 py-3 text-left hover:border-[#f2c14e]">
+          <span className="size-3 shrink-0 rounded-full border-2 border-[#f2c14e]" aria-hidden />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-semibold">Portal to: {p.there.title}</span>
+            <span className="block text-xs text-muted">
+              on the {p.there_map === "books" ? "Book" : "Knowledge"} Map · {Math.round(p.similarity * 100)}% match
+            </span>
+          </span>
+          <span className="text-sm text-[#f2c14e]">→</span>
+        </button>
+      ))}
+    </div>
+  );
 }
 
 /** "Learn the real science": tap, wait for the concepts + route, or explain why not. */
@@ -83,7 +106,7 @@ function LearnButton({ book, onLearn }: { book: MapPoint; onLearn: (book: MapPoi
  * Bottom sheet over the persistent map. Only the handle drags (swipe down to dismiss), so
  * the description stays selectable; links open the real source in a new tab.
  */
-export default function ItemSheet({ point, palette, onClose, onLearn }: Props) {
+export default function ItemSheet({ point, palette, onClose, onLearn, portals, onPortal }: Props) {
   const drag = useDragControls();
   const detail = useItemDetail(point?.id ?? null);
 
@@ -142,6 +165,7 @@ export default function ItemSheet({ point, palette, onClose, onLearn }: Props) {
               </div>
             </div>
 
+            {portals && portals.length > 0 && onPortal && <PortalLinks portals={portals} onPortal={onPortal} />}
             {onLearn && point.type === "book" && <LearnButton key={point.id} book={point} onLearn={onLearn} />}
             {detail ? <DetailBody detail={detail} /> : <p className="mt-4 text-sm text-muted">Loading details…</p>}
           </div>

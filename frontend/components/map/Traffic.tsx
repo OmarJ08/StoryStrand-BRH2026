@@ -38,7 +38,7 @@ export function useTraffic(map: MapName, enabled: boolean): TrafficResponse | nu
   return enabled && traffic?.map === map ? traffic : null;
 }
 
-function radialTexture(ring: boolean): CanvasTexture {
+export function radialTexture(ring: boolean): CanvasTexture {
   const size = 128;
   const canvas = document.createElement("canvas");
   canvas.width = canvas.height = size;
