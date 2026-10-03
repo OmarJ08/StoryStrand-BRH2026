@@ -40,6 +40,10 @@ Rules:
 - When the level goes up, say what new idea the higher level adds.
 - Never use these words: {", ".join(BANNED)}.
 - Do not open a note with "Stop 1", "Step 2", "Level 3" or similar; just talk.
+- Make it flow like one guide speaking: open the first note by welcoming the listener
+  (e.g. "Let's begin with ..."), and open every later note with a short spoken transition
+  that links it to the previous stop (e.g. "Building on that,", "From there,", "Stepping up a
+  level,", "With that in hand,", and "Finally," for the last stop). Vary the transitions.
 - Plain spoken English: no lists, markdown or emojis.
 Return JSON only: {{"notes": ["note for stop 1", "note for stop 2", ...]}}"""
 
@@ -61,6 +65,45 @@ def problems(notes: object, n_stops: int) -> list[str]:
         if NUMBERED_OPENING.match(note):
             found.append(f'note {i} opens with a stop/step/level number')
     return found
+
+
+# Openers that already link a note to the one before it.
+TRANSITION_OPENER = re.compile(
+    r"^\s*(next|then|now|so|and|finally|lastly|from (there|here)|building on|with (that|this)|"
+    r"having|after|once|going|stepping|moving|taking|staying|alongside|meanwhile|from that|"
+    r"that|this|these|here|to (go|take)|one level|a level|at (this|the next) level)\b",
+    re.IGNORECASE,
+)
+LEVEL_UP = ["Stepping up a level, ", "Going one level deeper, ", "Climbing higher, "]
+SAME_LEVEL = ["From there, ", "Building on that, ", "Staying at this level, "]
+# First words that are safe to lowercase after a prepended transition (not proper nouns).
+COMMON_FIRST_WORDS = {"the", "a", "an", "we", "you", "it", "its", "our", "this", "these",
+                      "those", "there", "here", "using", "with", "new", "now", "by", "in",
+                      "on", "at", "from", "to", "scientists", "researchers", "astronomers",
+                      "if", "when", "while", "even", "just", "simple", "modern", "early"}
+
+
+def add_transitions(notes: list[str], levels: list[int]) -> list[str]:
+    """Prepend a transition to any later note that starts abruptly, picked by the climb:
+    level up, same level, or the final stop. The first note is left as written."""
+    out = notes[:1]
+    up = same = 0
+    for i in range(1, len(notes)):
+        note = notes[i].strip()
+        if TRANSITION_OPENER.match(note):
+            out.append(note)
+            continue
+        if i == len(notes) - 1:
+            phrase = "Finally, "
+        elif levels[i] > levels[i - 1]:
+            phrase, up = LEVEL_UP[up % len(LEVEL_UP)], up + 1
+        else:
+            phrase, same = SAME_LEVEL[same % len(SAME_LEVEL)], same + 1
+        first, _, rest = note.partition(" ")
+        if first.lower() in COMMON_FIRST_WORDS:
+            note = first.lower() + (" " + rest if rest else "")
+        out.append(phrase + note)
+    return out
 
 
 def describe(stops: list[dict]) -> str:
@@ -93,7 +136,7 @@ def generate(stops: list[dict]) -> tuple[list[str] | None, str]:
             return None, f"ollama error: {e}"
         found = problems(notes, len(stops))
         if not found:
-            return [n.strip() for n in notes], "ok"
+            return add_transitions([n.strip() for n in notes], [s["difficulty"] for s in stops]), "ok"
         if attempt == 0:
             messages += [{"role": "assistant", "content": content},
                          {"role": "user", "content": "Fix these problems and return the full JSON again: "
