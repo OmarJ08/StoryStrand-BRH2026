@@ -63,11 +63,11 @@ export default function OnboardingPicker() {
   };
 
   return (
-    <div className="fixed inset-0 z-20 flex flex-col bg-ink/80 backdrop-blur-sm">
+    <div className="fixed inset-0 z-20 flex flex-col bg-ink/95">
       <BackButton onClick={() => router.push("/")} />
       <div className="mx-auto flex w-full max-w-2xl min-h-0 flex-1 flex-col px-4 pt-[max(4.25rem,calc(env(safe-area-inset-top)+3rem))]">
         <h1 className="font-display text-2xl font-bold">Pick 5 books you loved</h1>
-        <p className="mt-1 text-sm text-white/60">We&apos;ll drop your pin on the Book Map and show your reading DNA.</p>
+        <p className="mt-1 text-sm text-muted">We&apos;ll drop your pin on the Book Map and show your reading DNA.</p>
         <div className="mt-4">
           <SearchBox
             map="books"
@@ -80,10 +80,10 @@ export default function OnboardingPicker() {
             textHint="Not in our library? We'll estimate where it sits on the map"
           />
           {placing.length > 0 && (
-            <p className="mt-2 text-xs text-white/60">Placing “{placing[0]}” on the map… (about 10 s)</p>
+            <p className="mt-2 text-xs text-muted">Placing “{placing[0]}” on the map… (about 10 s)</p>
           )}
           {placed && placing.length === 0 && ("book" in placed ? (
-            <p className="mt-2 text-xs text-white/60">
+            <p className="mt-2 text-xs text-muted">
               Added <span className="text-white">{placed.book.title}</span>, estimated near{" "}
               <span className="text-coral">{placed.book.cluster_label}</span>
               {placed.book.nearest_titles.length > 0 && `, close to ${placed.book.nearest_titles.slice(0, 2).join(" and ")}`}
@@ -95,15 +95,15 @@ export default function OnboardingPicker() {
         </div>
 
         <div className="mt-4 min-h-0 flex-1 overflow-y-auto overscroll-contain pb-4">
-          <p className="mb-2 text-xs uppercase tracking-wider text-white/40">Or tap from the most-read</p>
+          <p className="mb-2 text-sm text-muted">Or tap from the most-read</p>
           {popular === null ? (
-            <p className="text-sm text-white/40">Loading books…</p>
+            <p className="text-sm text-muted">Loading books…</p>
           ) : (
             <div className="grid grid-cols-4 gap-3 sm:grid-cols-6">
               {popular.map((b) => (
                 <button key={b.id} onClick={() => toggle(b)} aria-pressed={picked(b.id)} aria-label={b.title}
                   className={`group relative aspect-[2/3] overflow-hidden rounded-lg transition ${
-                    picked(b.id) ? "ring-3 ring-coral" : "opacity-85 hover:opacity-100"}`}
+                    picked(b.id) ? "ring-3 ring-coral" : "ring-1 ring-line hover:ring-2 hover:ring-white/50"}`}
                   title={b.title}>
                   {b.cover_url && <Image src={b.cover_url} alt={b.title} fill sizes="120px" className="object-cover" />}
                   {picked(b.id) && (
@@ -118,7 +118,7 @@ export default function OnboardingPicker() {
         </div>
       </div>
 
-      <div className="border-t border-white/10 bg-ink/95 px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
+      <div className="border-t border-line bg-surface px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
         <div className="mx-auto flex max-w-2xl items-center gap-3">
           <div className="flex flex-1 gap-2">
             {Array.from({ length: PICKS }, (_, i) => picks[i]).map((p, i) => {
@@ -126,11 +126,11 @@ export default function OnboardingPicker() {
               return (
                 <button key={p?.id ?? `slot-${i}`} onClick={() => p && toggle(p)} disabled={!p}
                   aria-label={p ? `Remove ${p.title}` : pending ? "Placing a book" : `Empty slot ${i + 1}`}
-                  className={`relative aspect-[2/3] w-11 overflow-hidden rounded-md border border-dashed border-white/25 bg-white/5 ${
+                  className={`relative aspect-[2/3] w-11 overflow-hidden rounded-md border border-dashed border-line bg-ink ${
                     pending ? "animate-pulse" : ""}`}>
                   {p?.cover_url
                     ? <Image src={p.cover_url} alt="" fill sizes="44px" className="object-cover" />
-                    : p && <span className="block p-1 text-[9px] leading-tight text-white/70">{p.title}</span>}
+                    : p && <span className="block p-1 text-[9px] leading-tight text-muted">{p.title}</span>}
                   {p && "estimated" in p && (
                     <span className="absolute inset-x-0 bottom-0 bg-coral/90 text-center text-[8px] font-bold text-ink">EST.</span>
                   )}

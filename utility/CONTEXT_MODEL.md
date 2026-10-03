@@ -1,4 +1,4 @@
-# StoryStrand — Context model
+# StoryStrand context model
 
 A self-contained brief so another model (or person) can understand and work on StoryStrand
 without the chat history. Current as of the `cursor/any-book-and-branding` branch.
@@ -9,7 +9,7 @@ built, including deviations. The change history with reasons is `utility/iterati
 
 ## 1. What it is
 
-**StoryStrand — "Google Maps for your curiosity". Tagline: _Your reading DNA_.**
+**StoryStrand: "Google Maps for your curiosity". Tagline: _Your reading DNA_.**
 Built for a hackathon (BRH 2026, SpaceX track).
 
 Two 3D maps of meaning, where nearby points are similar in a 1024-d embedding space:

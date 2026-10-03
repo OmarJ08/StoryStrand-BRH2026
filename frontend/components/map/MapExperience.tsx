@@ -178,7 +178,7 @@ export default function MapExperience() {
         <Link
           href="/"
           aria-label="Back to the start"
-          className="fixed top-[max(1rem,env(safe-area-inset-top))] left-4 z-20 flex items-center gap-2 rounded-full border border-white/15 bg-ink/90 py-1.5 pr-3.5 pl-2 text-sm font-medium shadow-lg shadow-black/40 backdrop-blur-md hover:bg-ink"
+          className="fixed top-[max(1rem,env(safe-area-inset-top))] left-4 z-20 flex h-10 items-center gap-2 rounded-full border border-line bg-surface pr-4 pl-2.5 text-sm font-medium shadow-lg shadow-black/40 hover:border-white/40"
         >
           <Logo variant="mark" size="sm" />
           <span className="hidden sm:inline">Home</span>
@@ -196,7 +196,7 @@ export default function MapExperience() {
           />
           {!guest && map === "books" && (
             <Link href="/onboarding"
-              className="pointer-events-auto rounded-full bg-ink/80 px-3 py-1 text-xs text-white/70 backdrop-blur hover:text-white">
+              className="pointer-events-auto rounded-full border border-line bg-surface px-4 py-1.5 text-xs text-muted hover:text-white">
               You&apos;re at the centre for now. <span className="text-coral">Pick 5 books</span> to place yourself
             </Link>
           )}
@@ -212,7 +212,7 @@ export default function MapExperience() {
       )}
 
       {!points && (
-        <p className="pointer-events-none fixed inset-0 z-10 flex items-center justify-center text-sm text-white/60">
+        <p className="pointer-events-none fixed inset-0 z-10 flex items-center justify-center text-sm text-muted">
           {error?.map === map ? `Could not load the map: ${error.message}` : "Loading map…"}
         </p>
       )}

@@ -155,16 +155,14 @@ export function TrafficBadge({ traffic }: { traffic: TrafficResponse }) {
   const total = traffic.real_visits + traffic.simulated_visits;
   if (total === 0) return null;
   return (
-    <div className="pointer-events-none fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-4 z-[6] flex items-center gap-2 rounded-full border border-white/10 bg-ink/85 px-3 py-1.5 text-xs text-white/70 backdrop-blur-md">
+    <div className="pointer-events-none fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-4 z-[6] flex items-center gap-2 rounded-full border border-line bg-surface px-4 py-1.5 text-xs text-muted">
       <span className="relative flex size-2">
         <span className="absolute inline-flex size-full animate-ping rounded-full bg-coral opacity-75" />
         <span className="relative inline-flex size-2 rounded-full bg-coral" />
       </span>
       Live traffic · {total.toLocaleString()} visits in {traffic.window_minutes} min
       {traffic.simulated_visits > 0 && (
-        <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-white/60">
-          simulated
-        </span>
+        <span className="rounded-full border border-line px-2 py-0.5 text-[11px] text-white">simulated</span>
       )}
     </div>
   );

@@ -33,7 +33,7 @@ export default function Logo({ variant = "horizontal", size = "md", tagline = tr
   if (variant === "mark") return mark;
 
   const tag = tagline && (
-    <span className="text-[0.62rem] font-semibold tracking-[0.35em] text-white/55 sm:text-xs">YOUR READING DNA</span>
+    <span className="text-[0.62rem] font-semibold tracking-[0.35em] text-muted sm:text-xs">YOUR READING DNA</span>
   );
   return variant === "stacked" ? (
     <span className="flex flex-col items-center gap-3 text-center">

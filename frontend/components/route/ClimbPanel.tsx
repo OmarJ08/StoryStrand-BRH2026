@@ -53,9 +53,9 @@ function NarrationButton({ narration, player }: { narration: Narration; player: 
   const base = "shrink-0 rounded-full px-4 py-2 font-display text-sm font-semibold";
   switch (narration.status) {
     case "preparing":
-      return <span className={`${base} bg-white/10 text-white/60`}>Preparing narration…</span>;
+      return <span className={`${base} border border-line text-muted`}>Preparing narration…</span>;
     case "none":
-      return <span className={`${base} bg-white/5 text-white/40`}>No narration</span>;
+      return <span className={`${base} border border-line text-muted`}>No narration</span>;
     case "error":
       return <span className={`${base} bg-coral/15 text-coral`} title={narration.message}>Voice unavailable</span>;
     case "ready":
@@ -86,11 +86,11 @@ export default function ClimbPanel({ route, onStop, narration, player }: {
   const levels = route.stops.map((s) => s.item.difficulty ?? 1);
   const notes = narration.status === "ready" ? narration.notes : null;
   return (
-    <section className="pointer-events-auto fixed inset-x-0 bottom-0 z-10 mx-auto max-h-[40dvh] max-w-lg overflow-y-auto rounded-t-3xl border border-b-0 border-white/15 bg-ink/95 px-5 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl shadow-black/60 backdrop-blur-xl">
+    <section className="pointer-events-auto fixed inset-x-0 bottom-0 z-10 mx-auto max-h-[40dvh] max-w-lg overflow-y-auto rounded-t-3xl border border-b-0 border-line bg-surface px-5 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl shadow-black/60">
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="font-display text-lg font-semibold">Your climb</h2>
-          <p className="text-xs text-white/50">
+          <p className="text-xs text-muted">
             {route.stops.length} stops · level {levels[0]} → {levels[levels.length - 1]}
           </p>
         </div>
@@ -120,13 +120,13 @@ export default function ClimbPanel({ route, onStop, narration, player }: {
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium">{s.item.title}</span>
-                <span className="block text-xs text-white/50">
+                <span className="block text-xs text-muted">
                   {TYPE_LABEL[s.item.type] ?? s.item.type} · level {s.item.difficulty}
                   {s.step_similarity !== null && ` · ${Math.round(s.step_similarity * 100)}% like the last stop`}
                 </span>
                 {notes?.[i] && (
                   <span className={`mt-1 block text-[13px] leading-snug ${
-                    player.index === i ? "text-white" : "text-white/70"}`}>
+                    player.index === i ? "text-white" : "text-muted"}`}>
                     {notes[i]}
                   </span>
                 )}

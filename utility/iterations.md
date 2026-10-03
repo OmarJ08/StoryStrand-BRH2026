@@ -1,4 +1,4 @@
-# StoryStrand — Iterations log
+# StoryStrand iterations log
 
 Every change made to StoryStrand so far, in build order, with the reason behind it.
 Commit hashes refer to this repo (`OmarJ08/storystrand-brh2026`). Data-pipeline scripts live
@@ -161,6 +161,16 @@ their changes are described here without hashes.
 | `components/map/Traffic.tsx`: `useTraffic` polls every 5 s (map pages only, tab visible); `TrafficPulse` draws a breathing glow per neighborhood (size ∝ √visits) and rings that ping for fresh visits, spread over the poll interval; two instanced draw calls. `TrafficBadge`: "Live traffic · N visits in 30 min · SIMULATED". | Neighborhoods visibly pulse; the label is honest about simulated data. |
 | Glow drawn first in the opaque pass with no depth test (dots paint over it); rings drawn on top and kept small (≤ ~4 units). | First version washed the cloud centre out to white and the rings spanned half the map. |
 | Simulator moved into `backend/simulator.py` (daemon thread) with `GET/POST /api/simulation`; hidden switch (faint dot, bottom right of the home page) toggles it. While off, `/api/traffic` counts only real events, straight from the hypertable. `scripts/simulate_traffic.py` is now a thin CLI (`python -m scripts.simulate_traffic`). | Demo control without a terminal; turning it off clears the pulses and the "simulated" badge immediately instead of after 30 minutes. A standalone `nohup` run had also died silently when its shell closed. |
+
+## 17. Visual cleanup and README
+
+| Change | Why |
+|---|---|
+| Glass panels (translucent ink + `backdrop-blur`) replaced by solid `surface` panels with a `line` border; unused `glass` utility removed; body gradient replaced by flat ink. | Remove generic "glassmorphism over a gradient" styling; solid panels also read better over the busy 3D cloud and skip costly blur on phones. |
+| Secondary text at 40–60% white replaced by a `muted` token (#a3b8b7, about 8:1 on ink). | Low-contrast dark mode. |
+| Removed the 🔭 emoji, "✓", and eyebrow labels above headlines (item type over the title, "You are here" / "Your curiosity" over the reveal headlines); uppercase section labels made sentence case. Item type now leads the line under the title. | Generic AI-template patterns; the headlines already say it. |
+| Cover hover changed from an opacity fade to a ring; secondary buttons get a brighter border on hover instead of a translucent fill. Floating pills share one height (h-10) and panels one padding. | Fading-button hovers and inconsistent spacing. |
+| Em dashes removed from the utility docs. `README.md` written (pitch, how it works, Tiger features, Cursor and Grok, how to run). | Requested; README only claims features that exist (no portals, compression or hybrid search). |
 
 ## 16. Narration reliability
 

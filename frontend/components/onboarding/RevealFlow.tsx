@@ -30,7 +30,7 @@ function DnaBars({ dna }: { dna: DnaShare[] }) {
           <li key={d.label}>
             <div className="flex justify-between text-sm">
               <span className={i === 0 ? "font-semibold" : "text-white/80"}>{d.label}</span>
-              <span className="tabular-nums text-white/60">{Math.round(d.share * 100)}%</span>
+              <span className="tabular-nums text-muted">{Math.round(d.share * 100)}%</span>
             </div>
             <div className="mt-1 h-2 overflow-hidden rounded-full bg-white/10">
               <motion.div
@@ -101,15 +101,14 @@ export default function RevealFlow() {
       initial={{ y: "100%" }}
       animate={{ y: 0 }}
       transition={{ type: "spring", damping: 28, stiffness: 260, delay: step === "books" ? 0.9 : 0.6 }}
-      className="fixed inset-x-0 bottom-0 z-20 mx-auto max-h-[62dvh] max-w-lg overflow-y-auto rounded-t-3xl border border-b-0 border-white/15 bg-ink/95 px-5 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl shadow-black/60 backdrop-blur-xl"
+      className="fixed inset-x-0 bottom-0 z-20 mx-auto max-h-[62dvh] max-w-lg overflow-y-auto rounded-t-3xl border border-b-0 border-line bg-surface px-5 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl shadow-black/60"
     >
       {step === "books" ? (
         <>
-          <p className="text-xs uppercase tracking-wider text-coral">You are here</p>
-          <h2 className="mt-1 font-display text-2xl font-bold leading-tight">
+          <h2 className="font-display text-2xl font-bold leading-tight">
             Your reading lives near <span className="text-coral">{guest.dna.books[0].label}</span>
           </h2>
-          <p className="mt-1 text-sm text-white/60">
+          <p className="mt-1 text-sm text-muted">
             Your reading DNA, from {guest.picks.map((p) => p.title.replace(/\s*\(.*\)$/, "")).slice(0, 3).join(", ")} and more:
           </p>
           <DnaBars dna={guest.dna.books} />
@@ -123,7 +122,7 @@ export default function RevealFlow() {
               <Link href="/map/books" className="rounded-full bg-coral py-3 text-center font-display font-semibold text-ink">
                 Explore the Book Map
               </Link>
-              <Link href="/onboarding" className="rounded-full border border-white/20 py-3 text-center font-display font-semibold">
+              <Link href="/onboarding" className="rounded-full border border-line py-3 hover:border-white/40 text-center font-display font-semibold">
                 Pick again
               </Link>
             </div>
@@ -131,16 +130,10 @@ export default function RevealFlow() {
         </>
       ) : curiosity && knowledgeDna && (
         <>
-          <p className="flex items-center gap-2 text-xs uppercase tracking-wider text-[#2fc4c4]">
-            Your curiosity
-            <span className="rounded-full border border-[#2fc4c4]/50 px-2 py-0.5 text-[10px] normal-case tracking-normal">
-              suggested
-            </span>
-          </p>
-          <h2 className="mt-1 font-display text-2xl font-bold leading-tight">
+          <h2 className="font-display text-2xl font-bold leading-tight">
             Your curiosity lives near <span className="text-[#2fc4c4]">{knowledgeDna[0].label}</span>
           </h2>
-          <p className="mt-1 text-sm text-white/60">
+          <p className="mt-1 text-sm text-muted">
             {guest.scifi_picks.length} of your 5 picks are science fiction, so here&apos;s the real science
             nearest your taste. It&apos;s a suggestion: books and papers speak differently.
           </p>
@@ -149,11 +142,11 @@ export default function RevealFlow() {
             <Link href="/route" className="rounded-full bg-coral py-3 text-center font-display font-semibold text-ink">
               Plan a learning route
             </Link>
-            <Link href="/map/knowledge" className="rounded-full border border-white/20 py-3 text-center font-display font-semibold">
+            <Link href="/map/knowledge" className="rounded-full border border-line py-3 hover:border-white/40 text-center font-display font-semibold">
               Explore the map
             </Link>
           </div>
-          <div className="mt-3 text-right text-xs text-white/50">
+          <div className="mt-3 text-right text-xs text-muted">
             <Link href="/onboarding" className="hover:text-white">Pick again</Link>
           </div>
         </>

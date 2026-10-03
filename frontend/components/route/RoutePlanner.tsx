@@ -34,14 +34,14 @@ function Field({ label, pick, onPick, placeholder }: {
 }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="w-10 shrink-0 text-xs font-medium uppercase tracking-wider text-white/50">{label}</span>
+      <span className="w-10 shrink-0 text-sm text-muted">{label}</span>
       {pick ? (
-        <div className="flex min-w-0 flex-1 items-center justify-between gap-2 rounded-full border border-white/15 bg-ink/90 py-2 pr-2 pl-4">
+        <div className="flex min-w-0 flex-1 items-center justify-between gap-2 rounded-full border border-line bg-ink py-2 pr-2 pl-4">
           <span className="truncate text-sm">
             {pick.kind === "text" ? `“${pick.text}”` : pick.hit.title}
           </span>
           <button onClick={() => onPick(null)} aria-label={`Clear ${label}`}
-            className="shrink-0 rounded-full px-2 text-white/50 hover:text-white">×</button>
+            className="shrink-0 rounded-full px-2 text-muted hover:text-white">×</button>
         </div>
       ) : (
         <SearchBox
@@ -110,13 +110,13 @@ export default function RoutePlanner() {
   return (
     <>
       <header className="pointer-events-none fixed inset-x-0 top-0 z-20 flex justify-center px-4 pt-[max(1rem,env(safe-area-inset-top))]">
-        <div className="pointer-events-auto w-full max-w-md space-y-2 rounded-3xl border border-white/15 bg-ink/90 p-3 shadow-2xl shadow-black/50 backdrop-blur-xl">
+        <div className="pointer-events-auto w-full max-w-md space-y-2 rounded-3xl border border-line bg-surface p-4 shadow-2xl shadow-black/50">
           <div className="flex items-center justify-between px-1">
             <h1 className="min-w-0 truncate font-display text-base font-semibold">
               {route?.book && !editing ? `The real science of ${route.book.title}` : "Learning route"}
             </h1>
             <Link href={route?.book && !editing ? "/map/books" : "/map/knowledge"}
-              className="shrink-0 pl-2 text-xs text-white/50 hover:text-white">← Map</Link>
+              className="shrink-0 pl-2 text-xs text-muted hover:text-white">← Map</Link>
           </div>
           {route?.book && !editing && route.concepts.length > 0 && (
             <div className="flex flex-wrap gap-1.5 px-1">
@@ -133,7 +133,7 @@ export default function RoutePlanner() {
                 {route.stops[route.stops.length - 1].item.title}
               </p>
               <button onClick={() => setEditing(true)}
-                className="shrink-0 rounded-full border border-white/15 px-3 py-1 text-xs hover:bg-white/10">
+                className="shrink-0 rounded-full border border-line px-3 py-1 text-xs hover:border-white/40">
                 Edit
               </button>
             </div>
