@@ -20,6 +20,15 @@ export interface SearchHit extends MapPoint {
   creators: string[];
 }
 
+/** GET /api/items/:id: the full item and where to read it (first link is the primary one). */
+export interface ItemDetail extends SearchHit {
+  map: MapName;
+  year: number | null;
+  description: string;
+  tags: string[];
+  links: { label: string; url: string }[];
+}
+
 /** A route start or destination: typed text (matched by meaning) or a known item. */
 export type RouteEndpoint = { text: string } | { item_id: string };
 
@@ -29,6 +38,8 @@ export interface RouteStop {
   guide_note: string | null;
 }
 
+export type NotesStatus = "pending" | "ready" | "none";
+
 /** POST /api/route response (Section 12). */
 export interface RouteResponse {
   route_id: string;
@@ -36,4 +47,18 @@ export interface RouteResponse {
   kind: "learning";
   relaxed: boolean;
   stops: RouteStop[];
+  notes_status: NotesStatus;
+}
+
+/** GET /api/route/:id/notes */
+export interface RouteNotes {
+  status: NotesStatus;
+  notes: string[] | null;
+}
+
+/** POST /api/route/:id/voice */
+export interface RouteVoice {
+  route_id: string;
+  voice: string;
+  clips: { index: number; note: string; url: string }[];
 }

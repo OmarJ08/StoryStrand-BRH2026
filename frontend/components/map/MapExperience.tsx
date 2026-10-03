@@ -28,7 +28,7 @@ export default function MapExperience() {
   const params = useParams<{ map?: string }>();
   const onRoute = usePathname() === "/route";
   const map: MapName = onRoute || params.map === "knowledge" ? "knowledge" : "books";
-  const { route, selection, setSelection, focus, flyTo } = useScene();
+  const { route, selection, setSelection, focus, flyTo, activeStop } = useScene();
 
   const [data, setData] = useState<Partial<Record<MapName, MapPoint[]>>>({});
   const [error, setError] = useState<{ map: MapName; message: string } | null>(null);
@@ -92,7 +92,7 @@ export default function MapExperience() {
             <PointPicker points={points} onPick={onPick} onHover={onHover} />
           </>
         )}
-        {showRoute && <RouteLine route={route} />}
+        {showRoute && <RouteLine route={route} active={activeStop} />}
         <ViewShift fraction={showRoute ? ROUTE_VIEW_SHIFT : 0} />
         <CameraRig map={map} focus={focus} />
         <OrbitControls

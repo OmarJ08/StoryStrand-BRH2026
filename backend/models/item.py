@@ -56,6 +56,20 @@ class SearchHit(MapPoint):
     creators: list[str] = []
 
 
+class ItemLink(BaseModel):
+    label: str               # e.g. "arXiv", "PDF", "Wikipedia", "Goodreads"
+    url: str
+
+
+class ItemDetail(SearchHit):
+    """GET /api/items/{id}: everything the item sheet shows, plus where to read it."""
+    map: MapName
+    year: Optional[int] = None
+    description: str = ""
+    tags: list[str] = []
+    links: list[ItemLink] = []  # first is the primary "open" link
+
+
 class RouteEndpoint(BaseModel):
     """A route start or destination: typed text (matched by meaning) or a known item."""
     text: Optional[str] = Field(default=None, min_length=1, max_length=200)
@@ -82,12 +96,33 @@ class RouteStop(BaseModel):
     guide_note: Optional[str] = None           # filled by the tour-guide step later
 
 
+NotesStatus = Literal["pending", "ready", "none"]
+
+
 class RouteResponse(BaseModel):
     route_id: str
     map: MapName
     kind: Literal["learning"]
     relaxed: bool                               # True when the strict climb had no path
     stops: list[RouteStop]
+    notes_status: NotesStatus = "pending"       # notes are generated in the background
+
+
+class RouteNotes(BaseModel):
+    status: NotesStatus
+    notes: Optional[list[str]] = None
+
+
+class VoiceClip(BaseModel):
+    index: int
+    note: str
+    url: str                                    # relative to the API base
+
+
+class RouteVoice(BaseModel):
+    route_id: str
+    voice: str
+    clips: list[VoiceClip]
 
 
 def embedding_text(item: Item) -> str:

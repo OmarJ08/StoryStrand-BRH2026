@@ -15,6 +15,9 @@ interface Scene {
   setSelection: (selection: { map: MapName; point: MapPoint } | null) => void;
   focus: Focus | null;
   flyTo: (target: FocusTarget) => void;
+  /** Index of the route stop being narrated, highlighted on the map. */
+  activeStop: number | null;
+  setActiveStop: (index: number | null) => void;
 }
 
 const SceneContext = createContext<Scene | null>(null);
@@ -23,9 +26,12 @@ export function SceneProvider({ children }: { children: ReactNode }) {
   const [route, setRoute] = useState<RouteResponse | null>(null);
   const [selection, setSelection] = useState<Scene["selection"]>(null);
   const [focus, setFocus] = useState<Focus | null>(null);
+  const [activeStop, setActiveStop] = useState<number | null>(null);
   const flyTo = (target: FocusTarget) => setFocus((f) => ({ ...target, key: (f?.key ?? 0) + 1 }));
   return (
-    <SceneContext.Provider value={{ route, setRoute, selection, setSelection, focus, flyTo }}>
+    <SceneContext.Provider
+      value={{ route, setRoute, selection, setSelection, focus, flyTo, activeStop, setActiveStop }}
+    >
       {children}
     </SceneContext.Provider>
   );
