@@ -5,7 +5,7 @@ import { api, apiBlob } from "@/lib/api";
 import type { RouteNotes, RouteResponse, RouteVoice } from "@/lib/types";
 
 const POLL_MS = 1500;
-const NOTES_GIVE_UP_MS = 30_000;
+const NOTES_GIVE_UP_MS = 60_000;   // backend notes job allows 45 s (3 attempts)
 
 export type Narration =
   | { status: "preparing" }

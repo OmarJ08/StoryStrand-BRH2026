@@ -35,18 +35,25 @@ def stop_rows(kind: EventKind, map_name: MapName, stops: list[SearchHit], route_
     return [(kind, map_name, s.id, s.cluster_label, route_id, guest_id) for s in stops]
 
 
-def traffic(map_name: MapName) -> TrafficResponse:
+def traffic(map_name: MapName, include_simulated: bool) -> TrafficResponse:
+    """include_simulated=False (simulation switched off) counts real events only, straight
+    from the hypertable: the continuous aggregate can't tell simulated rows apart."""
+    real_only = "" if include_simulated else "AND NOT simulated "
     with get_conn() as conn:
         totals = dict(conn.execute(
             "SELECT cluster_label, sum(visits)::int FROM neighborhood_traffic "
             "WHERE map = %s AND bucket > now() - make_interval(mins => %s) AND cluster_label IS NOT NULL "
-            "GROUP BY cluster_label",
+            "GROUP BY cluster_label"
+            if include_simulated else
+            "SELECT cluster_label, count(*)::int FROM events "
+            "WHERE map = %s AND time > now() - make_interval(mins => %s) AND cluster_label IS NOT NULL "
+            "AND NOT simulated GROUP BY cluster_label",
             (map_name, TRAFFIC_WINDOW_MIN),
         ).fetchall())
         recent = dict(conn.execute(
             "SELECT cluster_label, count(*)::int FROM events "
             "WHERE map = %s AND time > now() - make_interval(secs => %s) AND cluster_label IS NOT NULL "
-            "GROUP BY cluster_label",
+            f"{real_only}GROUP BY cluster_label",
             (map_name, RECENT_S),
         ).fetchall())
         real, simulated = conn.execute(
@@ -57,7 +64,7 @@ def traffic(map_name: MapName) -> TrafficResponse:
     labels = sorted(set(totals) | set(recent), key=lambda k: -totals.get(k, 0))
     return TrafficResponse(
         map=map_name, window_minutes=TRAFFIC_WINDOW_MIN, recent_seconds=RECENT_S,
-        real_visits=real, simulated_visits=simulated,
+        real_visits=real, simulated_visits=simulated if include_simulated else 0,
         neighborhoods=[NeighborhoodTraffic(label=k, visits=totals.get(k, 0), recent=recent.get(k, 0))
                        for k in labels],
     )

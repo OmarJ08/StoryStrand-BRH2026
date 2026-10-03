@@ -170,6 +170,10 @@ class NeighborhoodTraffic(BaseModel):
     recent: int                                 # last recent_seconds, for the live ping
 
 
+class SimulationState(BaseModel):
+    running: bool
+
+
 class TrafficResponse(BaseModel):
     map: MapName
     window_minutes: int
