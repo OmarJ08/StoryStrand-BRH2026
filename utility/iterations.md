@@ -136,3 +136,27 @@ their changes are described here without hashes.
 | Home button (logo mark) top-left on map pages. | A way back to the starting screen from the map. |
 | Logos from the design sheet: extracted the mark (colour, one-colour ink, reversed white) from `Design.pdf` with its alpha mask into `public/brand/`; `components/Logo.tsx` (stacked / horizontal / mark, "Story" + coral "Strand", "YOUR READING DNA"); `app/icon.png` + `app/apple-icon.png` (colour mark on ink), default Next favicon removed. | Implements the identity system; the dark-UI lockup uses the design's dark variant (coral "Strand"). |
 | `utility/iterations.md` (this file) and `utility/CONTEXT_MODEL.md`. | History with reasons, and a self-contained brief for other models. |
+
+## 14. "Learn the real science" bridge (Step 17)
+
+| Change | Why |
+|---|---|
+| `backend/bridge.py` + `POST /api/bridge/learn {book_id, guest_id?, max_stops=5}`: qwen extracts 3–5 concepts (JSON, one retry), each embedded and snapped to its nearest Knowledge Map item; start = easiest snapped item; destination = hardest of the 20 items nearest the concepts' centroid; strict `learning_route`; saved as a `routes` row with `kind = 'bridge'`. Response = the `/api/route` shape plus `book` and `concepts`. | Section 10/12 bridge contract. Reusing the route shape means the existing climb panel, notes, voice and player work unchanged. |
+| Concept prompt narrowed to **space-science** concepts (astronomy, planetary science, spaceflight, space physics). | With the spec's generic "scientific concepts", The Martian gave "hydroponics, soil chemistry, photosynthesis", which snapped to unrelated astronomy (hydroponics → a hot super-Earth paper), and routes drifted into galaxy clusters. The Knowledge Map is space science only. |
+| Snaps below cosine 0.58 are dropped; fewer than 2 on-map concepts → 422 "draws on too little space science". Centroid uses only kept concepts. | Measured: good snaps were 0.58–0.74 ("radio astronomy" → Radio astronomy 0.74), junk 0.43–0.55. The Great Gatsby now gets an honest refusal instead of a nonsense route. |
+| Concepts + snaps cached in `book_concepts`; a repeat request whose stops match a saved bridge route with ready notes reuses that route. | Second tap is ~1 s and its notes and Grok Voice clips are already cached. |
+| Notes job takes an optional context line; bridge routes tell the guide which book the listener came from. | The first note links back to the book ("just like the air on Mars in that book"). |
+| `plan_route` refactored into `load_stops()` + `save_route()`. | Shared by learning and bridge routes. |
+| Item sheet (books): "🔭 Learn the real science" button with loading/error states. `MapExperience.onLearn` unlocks audio inside the tap, calls the bridge, sets the route, flies the camera, routes to `/route` with `autoplay`; `/route` starts narration once clips are ready and shows "The real science of …" with concept chips. | Hands-free tour from one tap. |
+| `useRoutePlayer` now uses one module-level `<audio>` element and exports `unlockAudio()`. | iPhone Safari only plays audio started in a gesture; the clips arrive 3–20 s after the tap, on another page, so the element is unlocked in the tap and reused. |
+| Tested on 11 books. Feature in the demo: **The Martian, Ender's Game, Rendezvous with Rama, Contact, Red Mars**. Don't feature: The Three-Body Problem (drifts to galaxy clusters), Packing for Mars (drifts to disks), Dune / 2001 (wander). All routes strict (`relaxed: false`). | "If concepts come out bad for a book, don't feature it." |
+
+## 15. Live traffic (Step 18)
+
+| Change | Why |
+|---|---|
+| `backend/events.py`: `log_events()` writes to the `events` hypertable from FastAPI background tasks (after the response). Logged: `search` (top hit's neighborhood), `stop_click` (on `GET /api/items/{id}`, i.e. every sheet open), `route` (one per stop), `learn` (the book, plus `route` events for its stops). Failures are printed, never raised. | Section 8 events. Background tasks keep the extra Tiger round trip out of request latency. |
+| `GET /api/traffic?map=`: visits per neighborhood over 30 min from the `neighborhood_traffic` continuous aggregate, `recent` counts (last 15 s) from raw events, and real vs simulated totals. | Section 12. Real-time aggregate (`materialized_only = false`) includes the newest buckets; observed that backfilled history appears after the next policy refresh (≤ 1 min). |
+| `scripts/simulate_traffic.py`: `simulated = true` events every ~3 s (~8 per burst) across all 30 neighborhoods, weighted by √size × a drifting random-walk popularity, with occasional 6× "surges"; `--backfill` minutes of history at start. | Activity on both maps during judging; drifting/surging weights make the pulses move around instead of sitting still. |
+| `components/map/Traffic.tsx`: `useTraffic` polls every 5 s (map pages only, tab visible); `TrafficPulse` draws a breathing glow per neighborhood (size ∝ √visits) and rings that ping for fresh visits, spread over the poll interval; two instanced draw calls. `TrafficBadge`: "Live traffic · N visits in 30 min · SIMULATED". | Neighborhoods visibly pulse; the label is honest about simulated data. |
+| Glow drawn first in the opaque pass with no depth test (dots paint over it); rings drawn on top and kept small (≤ ~4 units). | First version washed the cloud centre out to white and the rings spanned half the map. |

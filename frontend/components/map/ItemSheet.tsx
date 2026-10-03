@@ -52,13 +52,38 @@ interface Props {
   point: MapPoint | null;
   palette: Map<string, Color>;
   onClose: () => void;
+  /** Books only: build the "Learn the real science" route and take the user there. */
+  onLearn?: (book: MapPoint) => Promise<void>;
+}
+
+/** "Learn the real science": tap, wait for the concepts + route, or explain why not. */
+function LearnButton({ book, onLearn }: { book: MapPoint; onLearn: (book: MapPoint) => Promise<void> }) {
+  const [state, setState] = useState<{ s: "idle" | "loading" } | { s: "error"; message: string }>({ s: "idle" });
+  const learn = () => {
+    setState({ s: "loading" });
+    onLearn(book).catch((e: Error) => setState({
+      s: "error",
+      message: e.message.startsWith("422")
+        ? "This book draws on too little space science for a route."
+        : `Couldn't build the route (${e.message}).`,
+    }));
+  };
+  return (
+    <div className="mt-4">
+      <button onClick={learn} disabled={state.s === "loading"}
+        className="w-full rounded-full bg-teal px-4 py-3 font-display font-semibold text-white shadow-lg shadow-black/40 transition-opacity disabled:opacity-60">
+        {state.s === "loading" ? "Finding the real science…" : "🔭 Learn the real science"}
+      </button>
+      {state.s === "error" && <p className="mt-2 text-xs text-coral">{state.message}</p>}
+    </div>
+  );
 }
 
 /**
  * Bottom sheet over the persistent map. Only the handle drags (swipe down to dismiss), so
  * the description stays selectable; links open the real source in a new tab.
  */
-export default function ItemSheet({ point, palette, onClose }: Props) {
+export default function ItemSheet({ point, palette, onClose, onLearn }: Props) {
   const drag = useDragControls();
   const detail = useItemDetail(point?.id ?? null);
 
@@ -119,6 +144,7 @@ export default function ItemSheet({ point, palette, onClose }: Props) {
               </div>
             </div>
 
+            {onLearn && point.type === "book" && <LearnButton key={point.id} book={point} onLearn={onLearn} />}
             {detail ? <DetailBody detail={detail} /> : <p className="mt-4 text-sm text-white/40">Loading details…</p>}
           </div>
         </motion.section>

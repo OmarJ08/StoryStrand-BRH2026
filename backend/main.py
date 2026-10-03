@@ -7,13 +7,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse
 
+from backend.bridge import bridge_context, learn
 from backend.db.conn import get_conn
 from backend.embeddings import warm_in_background
 from backend.estimate import estimate_book
+from backend.events import log_events, stop_rows, traffic
 from backend.guest import plan_guest, popular_books
-from backend.models.item import (EstimatedBook, EstimateRequest, GuestRequest, GuestResponse,
-                                 ItemDetail, ItemLink, MapName, MapPoint, RouteNotes, RouteRequest,
-                                 RouteResponse, RouteVoice, SearchHit, SearchRequest, VoiceClip)
+from backend.models.item import (BridgeLearnRequest, EstimatedBook, EstimateRequest, GuestRequest,
+                                 GuestResponse, ItemDetail, ItemLink, MapName, MapPoint, RouteNotes,
+                                 RouteRequest, RouteResponse, RouteVoice, SearchHit, SearchRequest,
+                                 TrafficResponse, VoiceClip)
 from backend.routing.graph import load_graph
 from backend.routing.notes import run_notes_job
 from backend.routing.service import plan_route
@@ -72,7 +75,7 @@ def like_escape(s: str) -> str:
 
 
 @app.post("/api/search")
-def search(req: SearchRequest) -> list[SearchHit]:
+def search(req: SearchRequest, background: BackgroundTasks) -> list[SearchHit]:
     """Title lookup on one map: title prefix, then title contains, then author match;
     ties go to the more popular item. Vibe (vector) search will extend this endpoint."""
     q = like_escape(req.query.strip())
@@ -92,7 +95,10 @@ def search(req: SearchRequest) -> list[SearchHit]:
             {"map": req.map, "contains": f"%{q}%", "prefix": f"{q}%", "limit": req.limit},
         ).fetchall()
     fields = SearchHit.model_fields.keys()
-    return [SearchHit(**dict(zip(fields, r))) for r in rows]
+    hits = [SearchHit(**dict(zip(fields, r))) for r in rows]
+    if hits:   # a search counts as a visit to the top result's neighborhood
+        background.add_task(log_events, stop_rows("search", req.map, hits[:1], None, None))
+    return hits
 
 
 def source_links(item_type: str, attrs: dict) -> list[ItemLink]:
@@ -117,7 +123,8 @@ def source_links(item_type: str, attrs: dict) -> list[ItemLink]:
 
 
 @app.get("/api/items/{item_id:path}")
-def item_detail(item_id: str) -> ItemDetail:
+def item_detail(item_id: str, background: BackgroundTasks) -> ItemDetail:
+    """The item sheet opens with this call, so it is also where a stop_click is logged."""
     with get_conn() as conn:
         row = conn.execute(
             "SELECT id, type, title, cover_url, difficulty, cluster_label, x, y, z, creators, "
@@ -129,7 +136,9 @@ def item_detail(item_id: str) -> ItemDetail:
     *fields, attrs = row
     names = ["id", "type", "title", "cover_url", "difficulty", "cluster_label", "x", "y", "z",
              "creators", "map", "year", "description", "tags"]
-    return ItemDetail(**dict(zip(names, fields)), links=source_links(row[1], attrs or {}))
+    detail = ItemDetail(**dict(zip(names, fields)), links=source_links(row[1], attrs or {}))
+    background.add_task(log_events, stop_rows("stop_click", detail.map, [detail], None, None))
+    return detail
 
 
 @app.post("/api/guest")
@@ -156,7 +165,30 @@ def route(req: RouteRequest, background: BackgroundTasks) -> RouteResponse:
     Tour-guide notes are generated afterwards; poll GET /api/route/{id}/notes."""
     planned = plan_route(req)
     background.add_task(run_notes_job, planned.route_id)
+    background.add_task(log_events, stop_rows(
+        "route", "knowledge", [s.item for s in planned.stops], planned.route_id, req.guest_id))
     return planned
+
+
+@app.post("/api/bridge/learn")
+def bridge_learn(req: BridgeLearnRequest, background: BackgroundTasks) -> RouteResponse:
+    """"Learn the real science" (Section 10): a book's concepts -> a strict learning route on
+    the Knowledge Map. Same shape as /api/route plus book + concepts; notes as usual."""
+    planned, book = learn(req)
+    if planned.notes_status == "pending":
+        background.add_task(run_notes_job, planned.route_id, bridge_context(book, planned.concepts))
+    background.add_task(log_events, [
+        *stop_rows("learn", "books", [book], planned.route_id, req.guest_id),
+        *stop_rows("route", "knowledge", [s.item for s in planned.stops], planned.route_id, req.guest_id),
+    ])
+    return planned
+
+
+@app.get("/api/traffic")
+def get_traffic(map: MapName) -> TrafficResponse:
+    """Visits per neighborhood over the last 30 minutes, plus the last few seconds for the
+    live ping; simulated_visits > 0 means the UI must label the layer as simulated."""
+    return traffic(map)
 
 
 def saved_notes(route_id: str) -> RouteNotes:

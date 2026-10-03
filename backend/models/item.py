@@ -149,10 +149,34 @@ NotesStatus = Literal["pending", "ready", "none"]
 class RouteResponse(BaseModel):
     route_id: str
     map: MapName
-    kind: Literal["learning"]
+    kind: Literal["learning", "bridge"]
     relaxed: bool                               # True when the strict climb had no path
     stops: list[RouteStop]
     notes_status: NotesStatus = "pending"       # notes are generated in the background
+    # bridge routes only ("Learn the real science", Section 10)
+    book: Optional[SearchHit] = None
+    concepts: list[str] = []
+
+
+class BridgeLearnRequest(BaseModel):
+    book_id: str
+    guest_id: Optional[UUID] = None
+    max_stops: int = Field(default=5, ge=2, le=12)
+
+
+class NeighborhoodTraffic(BaseModel):
+    label: str
+    visits: int                                 # last window_minutes (continuous aggregate)
+    recent: int                                 # last recent_seconds, for the live ping
+
+
+class TrafficResponse(BaseModel):
+    map: MapName
+    window_minutes: int
+    recent_seconds: int
+    real_visits: int
+    simulated_visits: int                       # > 0 means the UI must say "simulated"
+    neighborhoods: list[NeighborhoodTraffic]
 
 
 class RouteNotes(BaseModel):

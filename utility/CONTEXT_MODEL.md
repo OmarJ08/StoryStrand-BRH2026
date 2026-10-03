@@ -56,6 +56,7 @@ keeps the Vercel env var stable.
 storystrand-brh2026/            (git repo, GitHub OmarJ08/storystrand-brh2026)
   .cursor/rules/storystrand.mdc  always-on project rules for agents
   docs/CONTEXT.md                original v6.1 spec (sections referenced as "§n")
+  scripts/simulate_traffic.py    demo traffic generator (simulated = true events)
   utility/                       iterations.md (history), CONTEXT_MODEL.md (this)
   backend/
     main.py                      FastAPI app, CORS, all endpoints
@@ -64,6 +65,8 @@ storystrand-brh2026/            (git repo, GitHub OmarJ08/storystrand-brh2026)
     embeddings.py                BGE-M3/MLX embed() with lock + warm-up
     guest.py                     onboarding: centroid, pins, DNA, sci-fi gate, popular books
     estimate.py                  any-book estimate (Open Library + qwen + BGE-M3 + kNN placement)
+    bridge.py                    "Learn the real science": concepts -> snaps -> strict route
+    events.py                    event logging + traffic query
     voice.py                     Grok TTS + disk cache
     routing/
       knowledge_cost.py          allowed() strict rule, edge_cost() soft fallback
@@ -154,6 +157,8 @@ Human Spaceflight Systems.
 | `POST /api/books/estimate {query}` | Any book → `EstimatedBook` (SearchHit + estimated, description, tags, nearest_titles, found_online). Takes ~5–13 s (qwen). |
 | `POST /api/guest {guest_id, book_ids[5]}` | ids may be `book:*` or `est:*`. Returns picks, book_pin, curiosity_pin (null unless ≥ 2 sci-fi picks), DNA per map, scifi_picks. |
 | `POST /api/route {start, destination}` | Each endpoint is `{item_id}` or `{text}`. Returns route id, stops (with difficulty), relaxed flag; kicks off notes in the background. |
+| `POST /api/bridge/learn {book_id, guest_id?, max_stops=5}` | "Learn the real science": same shape as /api/route with `kind: "bridge"`, `book`, `concepts`. 422 if the book draws on too little space science. |
+| `GET /api/traffic?map=` | Visits per neighborhood (30 min, continuous aggregate), `recent` (15 s), `real_visits`, `simulated_visits`. |
 | `GET /api/route/{id}/notes` | Notes status/result. |
 | `POST /api/route/{id}/voice` / `GET /api/route/{id}/voice/{i}.mp3` | Synthesize/cache and fetch narration clips. |
 
@@ -170,6 +175,15 @@ Human Spaceflight Systems.
   20 nearest knowledge items; shown only if ≥ 2 picks are sci-fi (tags regex or Hard Sci-Fi/space neighborhood).
 - **Estimated books**: Open Library metadata → qwen blurb + tags → embed with the same text recipe →
   x,y,z = similarity-weighted mean of 10 nearest real books; neighborhood = largest similarity weight.
+- **Bridge ("Learn the real science")**: qwen lists 3–5 *space-science* concepts for the book →
+  each embedded and snapped to its nearest knowledge item (kept only if cosine ≥ 0.58; need ≥ 2) →
+  start = easiest snapped item, destination = hardest of the 20 items nearest the kept concepts'
+  centroid → strict learning route (max 5 stops). Cached in `book_concepts`; identical routes with
+  ready notes are reused. Notes get a context line naming the book.
+  Demo books: The Martian, Ender's Game, Rendezvous with Rama, Contact, Red Mars.
+- **Events / traffic**: search, stop_click (item sheet open), route (per stop) and learn events are
+  written to `events` in background tasks. `scripts/simulate_traffic.py` adds `simulated = true`
+  events; the map shows breathing glows + pings per neighborhood and a "simulated" badge.
 - **Notes**: one Ollama JSON call for all stops, ≤ 2 sentences/240 chars, banned words
   (delve, tapestry, realm, embark, journey, ...), retry once, then spoken transitions added.
 
@@ -202,6 +216,7 @@ colour mark on ink. Source: the "StoryStrand logo variants" design sheet (Design
 uvicorn backend.main:app --port 8000
 ngrok http 8000 --url=remodeler-jitters-cradling.ngrok-free.dev
 ollama serve          # qwen3.5:9b pulled
+python scripts/simulate_traffic.py      # demo traffic (simulated = true), Ctrl-C to stop
 
 # frontend
 cd frontend && npm install && npm run dev      # NEXT_PUBLIC_API_URL in frontend/.env.local
@@ -222,9 +237,9 @@ Schema: `python -m backend.db.apply_schema`, then `psql "$DATABASE_URL" -f backe
 
 ## 12. Known gaps / next ideas
 
-- `portals` / `book_concepts` (book ↔ knowledge bridges from the spec) are not built; the
-  curiosity pin is the only bridge today.
+- `portals` (mutual-match book ↔ knowledge pairs) are not built; bridges today are the curiosity
+  pin and "Learn the real science".
 - Book Map routes are not implemented (routes are Knowledge Map only).
-- `events` hypertable exists but nothing writes analytics yet.
+- Search/item events carry no guest_id (only routes and learns do).
 - Estimated books are not drawn as map points; they only influence the guest's pin and DNA.
 - Backend must be running on the laptop for the deployed site to work.

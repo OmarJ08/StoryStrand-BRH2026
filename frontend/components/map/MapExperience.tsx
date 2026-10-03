@@ -3,13 +3,16 @@
 import { OrbitControls } from "@react-three/drei";
 import { Canvas } from "@react-three/fiber";
 import Link from "next/link";
-import { useParams, usePathname } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import SearchBox from "@/components/SearchBox";
 import Logo from "@/components/Logo";
-import type { MapName, MapPoint, Pin, SearchHit } from "@/lib/types";
-import CameraRig, { pointFocus, ViewShift } from "./CameraRig";
+import { unlockAudio } from "@/components/route/useRoutePlayer";
+import { getGuestId } from "@/lib/guest";
+import type { MapName, MapPoint, Pin, RouteResponse, SearchHit } from "@/lib/types";
+import CameraRig, { pointFocus, pointsFocus, ViewShift } from "./CameraRig";
+import { TrafficBadge, TrafficPulse, useTraffic } from "./Traffic";
 import { clusterPalette } from "./colors";
 import ItemSheet from "./ItemSheet";
 import { centroidsOf, LabelOverlay, LabelProjector } from "./Labels";
@@ -36,7 +39,10 @@ export default function MapExperience() {
   const onRoute = pathname === "/route";
   const onMapPage = pathname.startsWith("/map/");
   const onReveal = pathname === "/onboarding/reveal";
-  const { route, selection, setSelection, focus, flyTo, activeStop, mapOverride } = useScene();
+  const router = useRouter();
+  const {
+    route, setRoute, selection, setSelection, focus, flyTo, activeStop, setActiveStop, mapOverride, setAutoplay,
+  } = useScene();
   const map: MapName = mapOverride ?? (onRoute || params.map === "knowledge" ? "knowledge" : "books");
   const guest = useGuest();
   const guestPin = guest ? (map === "books" ? guest.book_pin : guest.curiosity_pin) : null;
@@ -97,6 +103,22 @@ export default function MapExperience() {
     setSelection({ map, point: hit });
     flyTo(pointFocus(hit));
   };
+  // "Learn the real science": unlock audio inside the tap, build the bridge route, then
+  // fly to the Knowledge Map; /route starts the narration once its clips are ready.
+  const onLearn = async (book: MapPoint) => {
+    unlockAudio();
+    const r = await api<RouteResponse>("/api/bridge/learn", {
+      method: "POST",
+      body: JSON.stringify({ book_id: book.id, guest_id: getGuestId() }),
+    });
+    setRoute(r);
+    setActiveStop(null);
+    setSelection(null);
+    setAutoplay(true);
+    flyTo(pointsFocus(r.stops.map((s) => s.item)));
+    router.push("/route");
+  };
+  const traffic = useTraffic(map, onMapPage);
 
   return (
     <>
@@ -118,6 +140,7 @@ export default function MapExperience() {
               keepClear={keepClear}
             />
             <PointPicker points={points} onPick={onPick} onHover={onHover} />
+            {traffic && <TrafficPulse centroids={centroids} palette={palette} traffic={traffic} />}
           </>
         )}
         {showRoute && <RouteLine route={route} active={activeStop} />}
@@ -194,7 +217,9 @@ export default function MapExperience() {
         </p>
       )}
 
-      <ItemSheet point={selected} palette={palette} onClose={() => setSelection(null)} />
+      {onMapPage && traffic && !selected && <TrafficBadge traffic={traffic} />}
+      <ItemSheet point={selected} palette={palette} onClose={() => setSelection(null)}
+        onLearn={map === "books" ? onLearn : undefined} />
     </>
   );
 }
