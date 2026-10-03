@@ -89,7 +89,7 @@ export function LabelProjector({ centroids, refs, active, keepClear }: {
   centroids: Centroid[];
   refs: LabelRefs;
   active: string | null;
-  keepClear: MapPoint[];        // e.g. the selected point, route stops: no label may cover them
+  keepClear: { x: number; y: number; z: number }[];   // selected point, route stops, pins
 }) {
   const shown = useRef<Map<string, boolean>>(new Map());
   const dimmed = useRef<Map<string, boolean>>(new Map());

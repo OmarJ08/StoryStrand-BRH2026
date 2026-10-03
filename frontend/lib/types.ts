@@ -29,6 +29,29 @@ export interface ItemDetail extends SearchHit {
   links: { label: string; url: string }[];
 }
 
+export interface Pin {
+  x: number;
+  y: number;
+  z: number;
+  home_cluster: string;
+  suggested: boolean;
+}
+
+export interface DnaShare {
+  label: string;
+  share: number;
+}
+
+/** POST /api/guest response (Section 12). */
+export interface GuestResponse {
+  guest_id: string;
+  picks: SearchHit[];
+  book_pin: Pin;
+  curiosity_pin: Pin | null;              // only when sci-fi is a real part of the picks
+  scifi_picks: string[];
+  dna: { books: DnaShare[]; knowledge?: DnaShare[] };
+}
+
 /** A route start or destination: typed text (matched by meaning) or a known item. */
 export type RouteEndpoint = { text: string } | { item_id: string };
 

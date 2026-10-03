@@ -30,12 +30,17 @@ export default function Home() {
         <StatusLine health={health} />
         <p className="mt-2 truncate text-xs text-white/40">{process.env.NEXT_PUBLIC_API_URL}</p>
       </div>
-      <Link
-        href="/map/books"
-        className="rounded-full bg-coral px-6 py-3 font-display font-semibold text-ink transition-transform active:scale-95"
-      >
-        Open the map
-      </Link>
+      <div className="flex flex-col items-center gap-3">
+        <Link
+          href="/onboarding"
+          className="rounded-full bg-coral px-6 py-3 font-display font-semibold text-ink transition-transform active:scale-95"
+        >
+          Pick 5 books you loved
+        </Link>
+        <Link href="/map/books" className="text-sm text-white/60 hover:text-white">
+          or just explore the map →
+        </Link>
+      </div>
     </main>
   );
 }
