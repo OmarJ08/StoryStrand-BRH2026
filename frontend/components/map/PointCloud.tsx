@@ -24,7 +24,10 @@ interface Props {
   palette: Map<string, Color>;
   selected: MapPoint | null;
   hovered: MapPoint | null;
+  dimmed?: boolean;      // fade the whole map back, e.g. so a route stands out
 }
+
+const DIMMED = 0.3;
 
 /** A flat ring that always faces the camera, drawn around one point. */
 function Outline({ map, point, inner, outer, color }: {
@@ -42,7 +45,7 @@ function Outline({ map, point, inner, outer, color }: {
 }
 
 /** Every point on the map as ONE instanced mesh: a single draw call. */
-export default function PointCloud({ map, points, palette, selected, hovered }: Props) {
+export default function PointCloud({ map, points, palette, selected, hovered, dimmed = false }: Props) {
   const mesh = useRef<InstancedMesh>(null);
   const geometry = useMemo(() => new IcosahedronGeometry(1, 1), []);
 
@@ -56,13 +59,14 @@ export default function PointCloud({ map, points, palette, selected, hovered }: 
       o.scale.setScalar(sizeOf(map, p));
       o.updateMatrix();
       m.setMatrixAt(i, o.matrix);
-      c.copy(palette.get(p.cluster_label) ?? c.set("#ffffff")).multiplyScalar(brightnessOf(map, p));
+      c.copy(palette.get(p.cluster_label) ?? c.set("#ffffff"))
+        .multiplyScalar(brightnessOf(map, p) * (dimmed ? DIMMED : 1));
       m.setColorAt(i, c);
     });
     m.instanceMatrix.needsUpdate = true;
     if (m.instanceColor) m.instanceColor.needsUpdate = true;
     m.computeBoundingSphere();
-  }, [map, points, palette]);
+  }, [map, points, palette, dimmed]);
 
   return (
     <>

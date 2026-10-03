@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from functools import cache
 
 from fastapi import FastAPI, Response
@@ -5,9 +6,21 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 
 from backend.db.conn import get_conn
-from backend.models.item import MapName, MapPoint, SearchHit, SearchRequest
+from backend.embeddings import warm_in_background
+from backend.models.item import (MapName, MapPoint, RouteRequest, RouteResponse, SearchHit,
+                                 SearchRequest)
+from backend.routing.graph import load_graph
+from backend.routing.service import plan_route
 
-app = FastAPI(title="StoryStrand API")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    load_graph()
+    warm_in_background()
+    yield
+
+
+app = FastAPI(title="StoryStrand API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -73,3 +86,9 @@ def search(req: SearchRequest) -> list[SearchHit]:
         ).fetchall()
     fields = SearchHit.model_fields.keys()
     return [SearchHit(**dict(zip(fields, r))) for r in rows]
+
+
+@app.post("/api/route")
+def route(req: RouteRequest) -> RouteResponse:
+    """Learning route on the Knowledge Map (Section 9.3): strict climb, soft fallback."""
+    return plan_route(req)

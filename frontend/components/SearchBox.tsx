@@ -10,10 +10,14 @@ interface Props {
   map: MapName;
   placeholder: string;
   onSelect: (hit: SearchHit) => void;
+  /** When set, the first suggestion is "Search by meaning" and picks the typed text itself. */
+  onText?: (text: string) => void;
 }
 
+type Option = { kind: "text"; text: string } | { kind: "hit"; hit: SearchHit };
+
 /** Type-ahead title/author search on one map (POST /api/search). */
-export default function SearchBox({ map, placeholder, onSelect }: Props) {
+export default function SearchBox({ map, placeholder, onSelect, onText }: Props) {
   const [query, setQuery] = useState("");
   const [result, setResult] = useState<{ query: string; hits: SearchHit[] } | null>(null);
   const [open, setOpen] = useState(false);
@@ -39,10 +43,25 @@ export default function SearchBox({ map, placeholder, onSelect }: Props) {
 
   const q = query.trim();
   const hits = q && result?.query === q ? result.hits : [];
+  const options: Option[] = [
+    ...(onText && q ? [{ kind: "text" as const, text: q }] : []),
+    ...hits.map((hit) => ({ kind: "hit" as const, hit })),
+  ];
   const showList = open && q.length > 0;
 
-  const choose = (hit: SearchHit) => {
-    onSelect(hit);
+  const choose = (option: Option) => {
+    switch (option.kind) {
+      case "text":
+        onText?.(option.text);
+        break;
+      case "hit":
+        onSelect(option.hit);
+        break;
+      default: {
+        const unhandled: never = option;
+        return unhandled;
+      }
+    }
     setQuery("");
     setResult(null);
     setOpen(false);
@@ -69,13 +88,13 @@ export default function SearchBox({ map, placeholder, onSelect }: Props) {
         onKeyDown={(e) => {
           if (e.key === "ArrowDown") {
             e.preventDefault();
-            setActive((i) => Math.min(i + 1, hits.length - 1));
+            setActive((i) => Math.min(i + 1, options.length - 1));
           } else if (e.key === "ArrowUp") {
             e.preventDefault();
             setActive((i) => Math.max(i - 1, 0));
-          } else if (e.key === "Enter" && hits[active]) {
+          } else if (e.key === "Enter" && options[active]) {
             e.preventDefault();
-            choose(hits[active]);
+            choose(options[active]);
           } else if (e.key === "Escape") {
             setOpen(false);
           }
@@ -86,32 +105,41 @@ export default function SearchBox({ map, placeholder, onSelect }: Props) {
         <ul
           id={listId}
           role="listbox"
-          className="absolute inset-x-0 top-full z-20 mt-2 max-h-[50dvh] overflow-y-auto rounded-2xl border border-white/15 bg-ink py-1.5 shadow-2xl shadow-black/60"
+          className="absolute inset-x-0 top-full z-30 mt-2 max-h-[50dvh] overflow-y-auto rounded-2xl border border-white/15 bg-ink py-1.5 shadow-2xl shadow-black/60"
         >
-          {hits.length === 0 && (
-            <li className="px-4 py-2.5 text-sm text-white/50">
-              {result?.query === q ? "No matches" : "Searching…"}
-            </li>
-          )}
-          {hits.map((hit, i) => (
+          {options.map((option, i) => (
             <li
-              key={hit.id}
+              key={option.kind === "text" ? "__text" : option.hit.id}
               role="option"
               aria-selected={i === active}
               // mousedown, not click: fires before the input's blur closes the list
               onMouseDown={(e) => {
                 e.preventDefault();
-                choose(hit);
+                choose(option);
               }}
               onMouseEnter={() => setActive(i)}
               className={`cursor-pointer px-4 py-2 ${i === active ? "bg-white/10" : ""}`}
             >
-              <p className="truncate text-sm font-medium text-white">{hit.title}</p>
-              <p className="truncate text-xs text-white/50">
-                {hit.creators.slice(0, 2).join(", ")} · {hit.cluster_label}
-              </p>
+              {option.kind === "text" ? (
+                <>
+                  <p className="truncate text-sm font-medium text-coral">Search by meaning: “{option.text}”</p>
+                  <p className="text-xs text-white/50">Matches the closest topics, not just titles</p>
+                </>
+              ) : (
+                <>
+                  <p className="truncate text-sm font-medium text-white">{option.hit.title}</p>
+                  <p className="truncate text-xs text-white/50">
+                    {option.hit.creators.slice(0, 2).join(", ")} · {option.hit.cluster_label}
+                  </p>
+                </>
+              )}
             </li>
           ))}
+          {hits.length === 0 && (
+            <li className="px-4 py-2.5 text-sm text-white/50">
+              {result?.query === q ? "No title matches" : "Searching…"}
+            </li>
+          )}
         </ul>
       )}
     </div>

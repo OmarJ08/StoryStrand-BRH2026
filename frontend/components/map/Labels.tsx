@@ -89,7 +89,7 @@ export function LabelProjector({ centroids, refs, active, keepClear }: {
   centroids: Centroid[];
   refs: LabelRefs;
   active: string | null;
-  keepClear: MapPoint | null;   // e.g. the selected point: no label may cover it
+  keepClear: MapPoint[];        // e.g. the selected point, route stops: no label may cover them
 }) {
   const shown = useRef<Map<string, boolean>>(new Map());
   const dimmed = useRef<Map<string, boolean>>(new Map());
@@ -130,8 +130,8 @@ export function LabelProjector({ centroids, refs, active, keepClear }: {
     });
 
     const placed: Box[] = [];
-    if (keepClear) {
-      v.set(keepClear.x, keepClear.y, keepClear.z).project(camera);
+    for (const p of keepClear) {
+      v.set(p.x, p.y, p.z).project(camera);
       if (v.z <= 1) {
         placed.push({
           x: ((v.x + 1) / 2) * size.width, y: ((1 - v.y) / 2) * size.height,

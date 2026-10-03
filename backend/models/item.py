@@ -1,5 +1,7 @@
 from typing import Literal, Optional
-from pydantic import BaseModel, Field
+from uuid import UUID
+
+from pydantic import BaseModel, Field, model_validator
 
 MapName = Literal["books", "knowledge"]
 ItemType = Literal["book", "encyclopedia", "report", "paper", "film"]  # film, report reserved
@@ -52,6 +54,40 @@ class SearchRequest(BaseModel):
 
 class SearchHit(MapPoint):
     creators: list[str] = []
+
+
+class RouteEndpoint(BaseModel):
+    """A route start or destination: typed text (matched by meaning) or a known item."""
+    text: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    item_id: Optional[str] = None
+
+    @model_validator(mode="after")
+    def exactly_one(self) -> "RouteEndpoint":
+        if (self.text is None) == (self.item_id is None):
+            raise ValueError("give exactly one of text or item_id")
+        return self
+
+
+class RouteRequest(BaseModel):
+    map: MapName
+    start: RouteEndpoint
+    destination: RouteEndpoint
+    max_stops: int = Field(default=6, ge=2, le=12)
+    guest_id: Optional[UUID] = None
+
+
+class RouteStop(BaseModel):
+    item: SearchHit
+    step_similarity: Optional[float] = None   # cosine to the previous stop
+    guide_note: Optional[str] = None           # filled by the tour-guide step later
+
+
+class RouteResponse(BaseModel):
+    route_id: str
+    map: MapName
+    kind: Literal["learning"]
+    relaxed: bool                               # True when the strict climb had no path
+    stops: list[RouteStop]
 
 
 def embedding_text(item: Item) -> str:
