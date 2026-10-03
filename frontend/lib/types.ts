@@ -83,6 +83,43 @@ export interface RouteResponse {
   /** bridge routes only ("Learn the real science"): the book and its concepts */
   book: SearchHit | null;
   concepts: string[];
+  /** frontend only: narration shipped with the site (public/demo), played without the API */
+  baked?: { notes: string[]; clips: string[] };
+}
+
+/** public/demo/bridge/<book>.json, written by scripts/bake_demo.py */
+export interface BakedBridge {
+  route: RouteResponse;
+  notes: string[];
+  clips: string[];   // site-relative MP3 paths
+}
+
+/** GET /api/portals?map= */
+export interface Portal {
+  similarity: number;
+  here: MapPoint;
+  there: MapPoint;
+  there_map: MapName;
+}
+
+/** GET /api/stats */
+export interface DbStats {
+  vector_search_ms: number;
+  vector_search_roundtrip_ms: number;
+  vector_index: string | null;
+  books: number;
+  knowledge: number;
+  vectors: number;
+  vector_dims: number;
+  portals: number;
+  events: number;
+  chunks: number;
+  compressed_chunks: number;
+  compression_ratio: number | null;
+  cagg_last_refresh: string | null;
+  cagg_refresh_ms: number | null;
+  cagg_status: string | null;
+  cagg_next_refresh: string | null;
 }
 
 /** GET/POST /api/simulation: the demo's simulated-traffic switch */

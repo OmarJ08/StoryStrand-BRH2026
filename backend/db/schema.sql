@@ -12,6 +12,10 @@ CREATE TABLE items (
   embedding vector(1024) NOT NULL
 );
 CREATE INDEX items_embedding_idx ON items USING diskann (embedding vector_cosine_ops);
+-- one partial DiskANN index per map: a filtered search ("knowledge items near this book")
+-- through the shared index streams past thousands of books first (~800 ms vs ~2 ms)
+CREATE INDEX items_embedding_knowledge_idx ON items USING diskann (embedding vector_cosine_ops) WHERE map = 'knowledge';
+CREATE INDEX items_embedding_books_idx ON items USING diskann (embedding vector_cosine_ops) WHERE map = 'books';
 CREATE INDEX items_map_idx ON items (map);
 
 CREATE TABLE portals (

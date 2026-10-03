@@ -5,14 +5,17 @@ import { Canvas } from "@react-three/fiber";
 import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api } from "@/lib/api";
+import { api, bakedJson, liveOrBaked, withTimeout } from "@/lib/api";
 import SearchBox from "@/components/SearchBox";
 import Logo from "@/components/Logo";
 import { unlockAudio } from "@/components/route/useRoutePlayer";
 import { getGuestId } from "@/lib/guest";
-import type { MapName, MapPoint, Pin, RouteResponse, SearchHit } from "@/lib/types";
+import { BAKED_BRIDGES, bakedBridgeFile } from "@/lib/presets";
+import type { BakedBridge, MapName, MapPoint, Pin, Portal, RouteResponse, SearchHit } from "@/lib/types";
 import CameraRig, { pointFocus, pointsFocus, ViewShift } from "./CameraRig";
+import { PortalMarkers, usePortals } from "./Portals";
 import { TrafficBadge, TrafficPulse, useTraffic } from "./Traffic";
+import UnderTheHood from "./UnderTheHood";
 import { clusterPalette } from "./colors";
 import ItemSheet from "./ItemSheet";
 import { centroidsOf, LabelOverlay, LabelProjector } from "./Labels";
@@ -21,12 +24,15 @@ import PointCloud from "./PointCloud";
 import PointPicker from "./PointPicker";
 import { useGuest } from "@/lib/guest";
 import { GuestPin, PinLabel, PinLabelProjector } from "./GuestPin";
-import RouteLine from "./RouteLine";
+import RouteLine, { liftedPoint } from "./RouteLine";
 import { useScene } from "./SceneContext";
 
 const ROUTE_VIEW_SHIFT = 0.14;   // lift the route into the band between header and climb panel
 const REVEAL_VIEW_SHIFT = 0.24;  // keep the dropped pin above the DNA panel
 const PIN_COLOR: Record<MapName, string> = { books: "#ff7b67", knowledge: "#2fc4c4" };
+const LIVE_TIMEOUT_MS = 3000;    // demo routes fall back to their baked copy after this
+const MAP_TIMEOUT_MS = 8000;     // map payloads are large; fall back only when really stuck
+const OFFLINE_HITS = 8;
 
 /**
  * The persistent map scene: lives in app/(scene)/layout.tsx so moving between /map/*,
@@ -61,7 +67,7 @@ export default function MapExperience() {
 
   useEffect(() => {
     if (data[map]) return;
-    api<MapPoint[]>(`/api/map?map=${map}`)
+    liveOrBaked(api<MapPoint[]>(`/api/map?map=${map}`), `map-${map}.json`, MAP_TIMEOUT_MS)
       .then((points) => setData((d) => ({ ...d, [map]: points })))
       .catch((e: Error) => setError({ map, message: e.message }));
   }, [map, data]);
@@ -82,7 +88,7 @@ export default function MapExperience() {
   const keepClear = useMemo(
     () => [
       ...(selected ? [selected] : []),
-      ...(showRoute && route ? route.stops.map((s) => s.item) : []),
+      ...(showRoute && route ? route.stops.map((s) => liftedPoint(s.item)) : []),
       // the pin head stands ~1 unit above its spot; keep both clear
       ...(pin ? [pin, { x: pin.x, y: pin.y + 1, z: pin.z }] : []),
     ],
@@ -99,26 +105,71 @@ export default function MapExperience() {
     (point: MapPoint | null) => setHover(point ? { map, point } : null),
     [map],
   );
+  // without the API, search the titles of the points already loaded (prefix matches first)
+  const offlineSearch = (q: string): SearchHit[] => {
+    const needle = q.toLowerCase();
+    return (points ?? [])
+      .filter((p) => p.title.toLowerCase().includes(needle))
+      .sort((a, b) => Number(b.title.toLowerCase().startsWith(needle)) - Number(a.title.toLowerCase().startsWith(needle))
+        || a.title.length - b.title.length)
+      .slice(0, OFFLINE_HITS)
+      .map((p) => ({ ...p, creators: [] }));
+  };
   const onSearch = (hit: SearchHit) => {
     setSelection({ map, point: hit });
     flyTo(pointFocus(hit));
   };
   // "Learn the real science": unlock audio inside the tap, build the bridge route, then
   // fly to the Knowledge Map; /route starts the narration once its clips are ready.
+  // Demo books also ship a baked route + narration: used when the live call is slower than
+  // LIVE_TIMEOUT_MS or fails, and whenever the live route is that same saved route.
   const onLearn = async (book: MapPoint) => {
     unlockAudio();
-    const r = await api<RouteResponse>("/api/bridge/learn", {
+    const live = api<RouteResponse>("/api/bridge/learn", {
       method: "POST",
       body: JSON.stringify({ book_id: book.id, guest_id: getGuestId() }),
     });
+    let r: RouteResponse;
+    if (BAKED_BRIDGES.has(book.id)) {
+      const baked = bakedJson<BakedBridge>(bakedBridgeFile(book.id)).catch(() => null);
+      const fresh = await withTimeout(live, LIVE_TIMEOUT_MS).catch(() => null);
+      const saved = await baked;
+      if (saved && (!fresh || fresh.route_id === saved.route.route_id)) {
+        r = { ...saved.route, baked: { notes: saved.notes, clips: saved.clips } };
+      } else {
+        r = fresh ?? await live;
+      }
+    } else {
+      r = await live;
+    }
     setRoute(r);
     setActiveStop(null);
     setSelection(null);
     setAutoplay(true);
-    flyTo(pointsFocus(r.stops.map((s) => s.item)));
+    flyTo(pointsFocus(r.stops.map((s) => liftedPoint(s.item))));
     router.push("/route");
   };
   const traffic = useTraffic(map, onMapPage);
+  const portals = usePortals(map, onMapPage);
+  const portalsHere = useMemo(() => {
+    const by = new Map<string, Portal[]>();
+    for (const p of portals ?? []) by.set(p.here.id, [...(by.get(p.here.id) ?? []), p]);
+    return by;
+  }, [portals]);
+  // Portal jump: switch maps first, then fly to the matching point (a focus requested before
+  // the switch would be replaced by CameraRig's map-change swoop).
+  const portalJump = useRef<{ to: MapPoint; from: MapName } | null>(null);
+  const onPortal = (p: Portal) => {
+    portalJump.current = { to: p.there, from: map };
+    setSelection({ map: p.there_map, point: p.there });
+    router.push(`/map/${p.there_map}`);
+  };
+  useEffect(() => {
+    const jump = portalJump.current;
+    if (!jump || jump.from === map) return;
+    portalJump.current = null;
+    flyTo(pointFocus(jump.to));
+  }, [map, flyTo]);
 
   return (
     <>
@@ -141,6 +192,7 @@ export default function MapExperience() {
             />
             <PointPicker points={points} onPick={onPick} onHover={onHover} />
             {traffic && <TrafficPulse centroids={centroids} palette={palette} traffic={traffic} />}
+            {portals && <PortalMarkers portals={portals} />}
           </>
         )}
         {showRoute && <RouteLine route={route} active={activeStop} />}
@@ -178,7 +230,7 @@ export default function MapExperience() {
         <Link
           href="/"
           aria-label="Back to the start"
-          className="fixed top-[max(1rem,env(safe-area-inset-top))] left-4 z-20 flex items-center gap-2 rounded-full border border-white/15 bg-ink/90 py-1.5 pr-3.5 pl-2 text-sm font-medium shadow-lg shadow-black/40 backdrop-blur-md hover:bg-ink"
+          className="fixed top-[max(1rem,env(safe-area-inset-top))] left-4 z-20 flex h-10 items-center gap-2 rounded-full border border-line bg-surface pr-4 pl-2.5 text-sm font-medium shadow-lg shadow-black/40 hover:border-white/40"
         >
           <Logo variant="mark" size="sm" />
           <span className="hidden sm:inline">Home</span>
@@ -193,10 +245,11 @@ export default function MapExperience() {
             map={map}
             placeholder={map === "books" ? "Search books or authors" : "Search topics and papers"}
             onSelect={onSearch}
+            offline={offlineSearch}
           />
           {!guest && map === "books" && (
             <Link href="/onboarding"
-              className="pointer-events-auto rounded-full bg-ink/80 px-3 py-1 text-xs text-white/70 backdrop-blur hover:text-white">
+              className="pointer-events-auto rounded-full border border-line bg-surface px-4 py-1.5 text-xs text-muted hover:text-white">
               You&apos;re at the centre for now. <span className="text-coral">Pick 5 books</span> to place yourself
             </Link>
           )}
@@ -212,14 +265,16 @@ export default function MapExperience() {
       )}
 
       {!points && (
-        <p className="pointer-events-none fixed inset-0 z-10 flex items-center justify-center text-sm text-white/60">
+        <p className="pointer-events-none fixed inset-0 z-10 flex items-center justify-center text-sm text-muted">
           {error?.map === map ? `Could not load the map: ${error.message}` : "Loading map…"}
         </p>
       )}
 
       {onMapPage && traffic && !selected && <TrafficBadge traffic={traffic} />}
+      {onMapPage && !selected && <UnderTheHood />}
       <ItemSheet point={selected} palette={palette} onClose={() => setSelection(null)}
-        onLearn={map === "books" ? onLearn : undefined} />
+        onLearn={map === "books" ? onLearn : undefined}
+        portals={selected ? portalsHere.get(selected.id) : undefined} onPortal={onPortal} />
     </>
   );
 }

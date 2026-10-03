@@ -13,14 +13,16 @@ from backend.embeddings import warm_in_background
 from backend.estimate import estimate_book
 from backend.events import log_events, stop_rows, traffic
 from backend.guest import plan_guest, popular_books
-from backend.models.item import (BridgeLearnRequest, EstimatedBook, EstimateRequest, GuestRequest,
-                                 GuestResponse, ItemDetail, ItemLink, MapName, MapPoint, RouteNotes,
+from backend.models.item import (BridgeLearnRequest, DbStats, EstimatedBook, EstimateRequest,
+                                 GuestRequest, GuestResponse, ItemDetail, ItemLink, MapName, MapPoint,
+                                 Portal, RouteNotes,
                                  RouteRequest, RouteResponse, RouteVoice, SearchHit, SearchRequest,
                                  SimulationState, TrafficResponse, VoiceClip)
 from backend.routing.graph import load_graph
 from backend.routing.notes import run_notes_job
 from backend.routing.service import plan_route
 from backend.simulator import simulator
+from backend.stats import db_stats
 from backend.voice import VOICE, clip_path, ensure_clips
 
 
@@ -191,6 +193,36 @@ def get_traffic(map: MapName) -> TrafficResponse:
     live ping; simulated_visits > 0 means the UI must label the layer as simulated.
     Simulated events count only while the simulation switch is on."""
     return traffic(map, include_simulated=simulator.running)
+
+
+def point_cols(alias: str) -> str:
+    """MapPoint columns of items, qualified by a table alias."""
+    return ", ".join(f"{alias}.{c}" for c in MapPoint.model_fields)
+
+
+@app.get("/api/portals")
+def get_portals(map: MapName, response: Response) -> list[Portal]:
+    """Portal markers for one map: mutual best book <-> knowledge matches (Section 10),
+    each with the matching point on the other map so the UI can fly there."""
+    response.headers["Cache-Control"] = "public, max-age=300"
+    here, there = ("b", "k") if map == "books" else ("k", "b")
+    with get_conn() as conn:
+        rows = conn.execute(
+            f"SELECT p.similarity, {point_cols(here)}, {point_cols(there)} FROM portals p "
+            "JOIN items b ON b.id = p.book_id JOIN items k ON k.id = p.knowledge_id "
+            "ORDER BY p.similarity DESC"
+        ).fetchall()
+    fields = list(MapPoint.model_fields)
+    n = len(fields)
+    return [Portal(similarity=round(r[0], 3), here=MapPoint(**dict(zip(fields, r[1:1 + n]))),
+                   there=MapPoint(**dict(zip(fields, r[1 + n:]))),
+                   there_map="knowledge" if map == "books" else "books") for r in rows]
+
+
+@app.get("/api/stats")
+def get_stats() -> DbStats:
+    """Live database numbers for the "Under the hood" panel."""
+    return db_stats()
 
 
 @app.get("/api/simulation")

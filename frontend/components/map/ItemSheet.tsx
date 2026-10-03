@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import type { Color } from "three";
 import { api } from "@/lib/api";
-import type { ItemDetail, ItemType, MapPoint } from "@/lib/types";
+import type { ItemDetail, ItemType, MapPoint, Portal } from "@/lib/types";
 
 function typeLabel(type: ItemType): string {
   switch (type) {
@@ -54,6 +54,29 @@ interface Props {
   onClose: () => void;
   /** Books only: build the "Learn the real science" route and take the user there. */
   onLearn?: (book: MapPoint) => Promise<void>;
+  /** Portals from this point to the other map; tapping one flies there. */
+  portals?: Portal[];
+  onPortal?: (portal: Portal) => void;
+}
+
+function PortalLinks({ portals, onPortal }: { portals: Portal[]; onPortal: (p: Portal) => void }) {
+  return (
+    <div className="mt-4 space-y-2">
+      {portals.map((p) => (
+        <button key={p.there.id} onClick={() => onPortal(p)}
+          className="flex w-full items-center gap-3 rounded-2xl border border-[#f2c14e]/60 px-4 py-3 text-left hover:border-[#f2c14e]">
+          <span className="size-3 shrink-0 rounded-full border-2 border-[#f2c14e]" aria-hidden />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-semibold">Portal to: {p.there.title}</span>
+            <span className="block text-xs text-muted">
+              on the {p.there_map === "books" ? "Book" : "Knowledge"} Map · {Math.round(p.similarity * 100)}% match
+            </span>
+          </span>
+          <span className="text-sm text-[#f2c14e]">→</span>
+        </button>
+      ))}
+    </div>
+  );
 }
 
 /** "Learn the real science": tap, wait for the concepts + route, or explain why not. */
@@ -71,8 +94,8 @@ function LearnButton({ book, onLearn }: { book: MapPoint; onLearn: (book: MapPoi
   return (
     <div className="mt-4">
       <button onClick={learn} disabled={state.s === "loading"}
-        className="w-full rounded-full bg-teal px-4 py-3 font-display font-semibold text-white shadow-lg shadow-black/40 transition-opacity disabled:opacity-60">
-        {state.s === "loading" ? "Finding the real science…" : "🔭 Learn the real science"}
+        className="w-full rounded-full bg-teal px-4 py-3 font-display font-semibold text-white shadow-lg shadow-black/40 hover:bg-[#178586] disabled:cursor-wait">
+        {state.s === "loading" ? "Finding the real science…" : "Learn the real science"}
       </button>
       {state.s === "error" && <p className="mt-2 text-xs text-coral">{state.message}</p>}
     </div>
@@ -83,7 +106,7 @@ function LearnButton({ book, onLearn }: { book: MapPoint; onLearn: (book: MapPoi
  * Bottom sheet over the persistent map. Only the handle drags (swipe down to dismiss), so
  * the description stays selectable; links open the real source in a new tab.
  */
-export default function ItemSheet({ point, palette, onClose, onLearn }: Props) {
+export default function ItemSheet({ point, palette, onClose, onLearn, portals, onPortal }: Props) {
   const drag = useDragControls();
   const detail = useItemDetail(point?.id ?? null);
 
@@ -104,7 +127,7 @@ export default function ItemSheet({ point, palette, onClose, onLearn }: Props) {
           onDragEnd={(_, info) => {
             if (info.offset.y > 80 || info.velocity.y > 500) onClose();
           }}
-          className="fixed inset-x-0 bottom-0 z-20 mx-auto flex max-h-[80dvh] max-w-lg flex-col rounded-t-3xl border border-b-0 border-white/15 bg-ink/95 px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl shadow-black/60 backdrop-blur-xl"
+          className="fixed inset-x-0 bottom-0 z-20 mx-auto flex max-h-[80dvh] max-w-lg flex-col rounded-t-3xl border border-b-0 border-line bg-surface px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl shadow-black/60"
         >
           <div
             onPointerDown={(e) => drag.start(e)}
@@ -125,15 +148,13 @@ export default function ItemSheet({ point, palette, onClose, onLearn }: Props) {
                 />
               )}
               <div className="min-w-0 flex-1">
-                <p className="text-xs uppercase tracking-wider text-white/50">{typeLabel(point.type)}</p>
-                <h2 className="mt-1 select-text font-display text-xl font-semibold leading-tight">{point.title}</h2>
-                {detail && (detail.creators.length > 0 || detail.year) && (
-                  <p className="mt-1 select-text text-sm text-white/60">
-                    {detail.creators.slice(0, 4).join(", ")}
-                    {detail.creators.length > 4 && " et al."}
-                    {detail.year && ` · ${detail.year}`}
-                  </p>
-                )}
+                <h2 className="select-text font-display text-xl font-semibold leading-tight">{point.title}</h2>
+                <p className="mt-1 select-text text-sm text-muted">
+                  {typeLabel(point.type)}
+                  {detail && detail.creators.length > 0 && ` · ${detail.creators.slice(0, 4).join(", ")}`}
+                  {detail && detail.creators.length > 4 && " et al."}
+                  {detail?.year && ` · ${detail.year}`}
+                </p>
                 <span
                   className="mt-3 inline-block rounded-full px-3 py-1 text-xs font-medium text-ink"
                   style={{ background: `#${palette.get(point.cluster_label)?.getHexString() ?? "ffffff"}` }}
@@ -144,8 +165,9 @@ export default function ItemSheet({ point, palette, onClose, onLearn }: Props) {
               </div>
             </div>
 
+            {portals && portals.length > 0 && onPortal && <PortalLinks portals={portals} onPortal={onPortal} />}
             {onLearn && point.type === "book" && <LearnButton key={point.id} book={point} onLearn={onLearn} />}
-            {detail ? <DetailBody detail={detail} /> : <p className="mt-4 text-sm text-white/40">Loading details…</p>}
+            {detail ? <DetailBody detail={detail} /> : <p className="mt-4 text-sm text-muted">Loading details…</p>}
           </div>
         </motion.section>
       )}
@@ -185,7 +207,7 @@ function DetailBody({ detail }: { detail: ItemDetail }) {
     });
   };
   const label = (key: string, idle: string) =>
-    copied?.key === key ? (copied.ok ? "Copied ✓" : "Copy failed") : idle;
+    copied?.key === key ? (copied.ok ? "Copied" : "Copy failed") : idle;
 
   return (
     <>
@@ -198,7 +220,7 @@ function DetailBody({ detail }: { detail: ItemDetail }) {
               target="_blank"
               rel="noopener noreferrer"
               className={`rounded-full px-4 py-2 text-sm font-semibold ${
-                i === 0 ? "bg-coral text-ink" : "border border-white/20 text-white hover:bg-white/10"
+                i === 0 ? "bg-coral text-ink" : "border border-line text-white hover:border-white/40"
               }`}
             >
               {i === 0 ? `Open on ${l.label}` : l.label} ↗
@@ -210,7 +232,7 @@ function DetailBody({ detail }: { detail: ItemDetail }) {
       {detail.description && (
         <div className="mt-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-xs uppercase tracking-wider text-white/50">
+            <h3 className="text-sm font-semibold text-white">
               {detail.type === "paper" ? "Abstract" : "About"}
             </h3>
             <div className="flex gap-3 text-xs">
@@ -239,7 +261,7 @@ function DetailBody({ detail }: { detail: ItemDetail }) {
 function Elevation({ level }: { level: number }) {
   return (
     <div className="mt-4">
-      <p className="text-xs text-white/60">Elevation · level {level} of 5</p>
+      <p className="text-xs text-muted">Elevation · level {level} of 5</p>
       <div className="mt-1.5 flex items-end gap-1" aria-hidden>
         {[1, 2, 3, 4, 5].map((l) => (
           <span

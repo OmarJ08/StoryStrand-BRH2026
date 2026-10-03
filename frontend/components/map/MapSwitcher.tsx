@@ -9,7 +9,7 @@ const MAPS: { map: MapName; label: string }[] = [
 /** Flips between maps by route only; the Canvas lives in the layout, so it never unmounts. */
 export default function MapSwitcher({ current }: { current: MapName }) {
   return (
-    <nav className="pointer-events-auto flex rounded-full border border-white/15 bg-ink/90 p-1 text-sm font-medium shadow-lg shadow-black/40 backdrop-blur-md">
+    <nav className="pointer-events-auto flex rounded-full border border-line bg-surface p-1 text-sm font-medium shadow-lg shadow-black/40">
       {MAPS.map(({ map, label }) => (
         <Link
           key={map}
@@ -17,7 +17,7 @@ export default function MapSwitcher({ current }: { current: MapName }) {
           scroll={false}
           aria-current={map === current ? "page" : undefined}
           className={`rounded-full px-4 py-1.5 transition-colors ${
-            map === current ? "bg-teal text-white" : "text-white/60 hover:text-white"
+            map === current ? "bg-teal text-white" : "text-muted hover:text-white"
           }`}
         >
           {label}

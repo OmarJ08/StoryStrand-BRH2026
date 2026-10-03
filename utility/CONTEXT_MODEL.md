@@ -1,4 +1,4 @@
-# StoryStrand — Context model
+# StoryStrand context model
 
 A self-contained brief so another model (or person) can understand and work on StoryStrand
 without the chat history. Current as of the `cursor/any-book-and-branding` branch.
@@ -9,7 +9,7 @@ built, including deviations. The change history with reasons is `utility/iterati
 
 ## 1. What it is
 
-**StoryStrand — "Google Maps for your curiosity". Tagline: _Your reading DNA_.**
+**StoryStrand: "Google Maps for your curiosity". Tagline: _Your reading DNA_.**
 Built for a hackathon (BRH 2026, SpaceX track).
 
 Two 3D maps of meaning, where nearby points are similar in a 1024-d embedding space:
@@ -161,6 +161,8 @@ Human Spaceflight Systems.
 | `POST /api/bridge/learn {book_id, guest_id?, max_stops=5}` | "Learn the real science": same shape as /api/route with `kind: "bridge"`, `book`, `concepts`. 422 if the book draws on too little space science. |
 | `GET /api/traffic?map=` | Visits per neighborhood (30 min, continuous aggregate), `recent` (15 s), `real_visits`, `simulated_visits`. Simulated events count only while the simulation is on. |
 | `GET/POST /api/simulation {running}` | Demo switch for the in-API traffic simulator (hidden dot, bottom right of the home page). |
+| `GET /api/portals?map=` | Portals on one map: `{similarity, here, there, there_map}` (145 mutual book <-> knowledge matches). |
+| `GET /api/stats` | Live Tiger numbers for the "Under the hood" panel (vector search ms, counts, chunks, compression, cagg refresh). |
 | `GET /api/route/{id}/notes` | Notes status/result. |
 | `POST /api/route/{id}/voice` / `GET /api/route/{id}/voice/{i}.mp3` | Synthesize/cache and fetch narration clips. |
 
@@ -187,6 +189,14 @@ Human Spaceflight Systems.
   written to `events` in background tasks. The simulator (`backend/simulator.py`, toggled by the
   hidden home-page switch) adds `simulated = true` events; the map shows breathing glows + pings
   per neighborhood and a "simulated" badge.
+- **Portals**: mutual top-3 by cosine between books and knowledge items, similarity ≥ 0.60, cap 300
+  (`data/scripts/build_portals.py`, exact numpy by default, `--in-db` SQL lateral join optional).
+- **Book Map layout**: 3D UMAP supervised by cluster labels (weight 0.05) + 3-SD outlier clip.
+- **Elevation**: on an active route, stops are lifted by difficulty × 0.9 and the line draws upward
+  as narration advances (`RouteLine.tsx`, `liftedPoint`).
+- **Offline fallbacks**: `scripts/bake_demo.py` -> `frontend/public/demo/`; `liveOrBaked()` in
+  `lib/api.ts` uses the baked copy after ~3 s or on error (maps, portals, popular books, quick-pick
+  guests, the 5 demo bridge routes with narration MP3s).
 - **Notes**: one Ollama JSON call for all stops, ≤ 2 sentences/240 chars, banned words
   (delve, tapestry, realm, embark, journey, ...), retry once, then spoken transitions added.
 
@@ -241,8 +251,6 @@ Schema: `python -m backend.db.apply_schema`, then `psql "$DATABASE_URL" -f backe
 
 ## 12. Known gaps / next ideas
 
-- `portals` (mutual-match book ↔ knowledge pairs) are not built; bridges today are the curiosity
-  pin and "Learn the real science".
 - Book Map routes are not implemented (routes are Knowledge Map only).
 - Search/item events carry no guest_id (only routes and learns do).
 - Estimated books are not drawn as map points; they only influence the guest's pin and DNA.

@@ -54,7 +54,7 @@ export function LabelOverlay({ centroids, palette, refs, active }: {
           ref={(el) => {
             refs.current[i] = el;
           }}
-          className={`absolute top-0 left-0 flex items-center gap-1.5 whitespace-nowrap rounded-full border-2 bg-ink/85 px-3 py-1 font-display text-[13px] font-semibold text-white opacity-0 shadow-lg shadow-black/50 backdrop-blur-md will-change-transform ${
+          className={`absolute top-0 left-0 flex items-center gap-1.5 whitespace-nowrap rounded-full border-2 bg-surface px-3 py-1 font-display text-[13px] font-semibold text-white opacity-0 shadow-lg shadow-black/50 will-change-transform ${
             c.label === active ? "z-10" : ""
           }`}
           style={{

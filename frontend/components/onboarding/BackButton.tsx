@@ -3,7 +3,7 @@ export default function BackButton({ onClick, label = "Back" }: { onClick: () =>
   return (
     <button
       onClick={onClick}
-      className="fixed top-[max(1rem,env(safe-area-inset-top))] left-4 z-30 rounded-full border border-white/15 bg-ink/90 px-4 py-2 text-sm font-medium text-white shadow-lg shadow-black/40 backdrop-blur-md hover:bg-ink"
+      className="fixed top-[max(1rem,env(safe-area-inset-top))] left-4 z-30 h-10 rounded-full border border-line bg-surface px-4 text-sm font-medium text-white shadow-lg shadow-black/40 hover:border-white/40"
     >
       ← {label}
     </button>

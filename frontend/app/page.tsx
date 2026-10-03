@@ -7,7 +7,7 @@ export default function Home() {
   return (
     <main className="flex flex-1 flex-col items-center justify-center gap-10 px-6 py-12 text-center">
       <Logo variant="stacked" size="lg" />
-      <p className="max-w-md text-lg text-white/75">
+      <p className="max-w-md text-lg text-muted">
         Google Maps for your curiosity. See where your reading lives, and get turn-by-turn
         directions from the stories you love to the science behind them.
       </p>
@@ -18,7 +18,7 @@ export default function Home() {
         >
           Pick 5 books you loved
         </Link>
-        <Link href="/map/books" className="text-sm text-white/60 hover:text-white">
+        <Link href="/map/books" className="text-sm text-muted underline-offset-4 hover:text-white hover:underline">
           or just explore the map →
         </Link>
       </div>
