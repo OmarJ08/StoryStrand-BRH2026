@@ -112,7 +112,7 @@ export function TrafficPulse({ centroids, palette, traffic }: {
       dummy.scale.setScalar(base * (1 + BREATHE * Math.sin(now * 2.2 + i * 1.7)));
       dummy.updateMatrix();
       g.setMatrixAt(i, dummy.matrix);
-      g.setColorAt(i, color.copy(tint).multiplyScalar(0.12 + 0.28 * share));
+      g.setColorAt(i, color.copy(tint).multiplyScalar(0.06 + 0.14 * share));
 
       // newest ping that has started and not yet faded
       const times = pings.current.get(c.label) ?? [];
@@ -122,7 +122,7 @@ export function TrafficPulse({ centroids, palette, traffic }: {
       dummy.scale.setScalar(live ? (RING_MIN + RING_GROWTH * Math.sqrt(share)) * (0.5 + 1.5 * k) : 0);
       dummy.updateMatrix();
       r.setMatrixAt(i, dummy.matrix);
-      r.setColorAt(i, color.copy(tint).multiplyScalar(live ? 0.7 * (1 - k) : 0));
+      r.setColorAt(i, color.copy(tint).multiplyScalar(live ? 0.4 * (1 - k) : 0));
     });
     for (const m of [g, r]) {
       m.instanceMatrix.needsUpdate = true;

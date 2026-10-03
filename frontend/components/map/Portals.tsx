@@ -51,7 +51,7 @@ export function PortalMarkers({ portals }: { portals: Portal[] }) {
       dummy.scale.setScalar(SIZE * (1 + 0.15 * Math.sin(t * 2.4 + i)));
       dummy.updateMatrix();
       m.setMatrixAt(i, dummy.matrix);
-      m.setColorAt(i, color.copy(GOLD).multiplyScalar(0.75 + 0.25 * Math.sin(t * 2.4 + i)));
+      m.setColorAt(i, color.copy(GOLD).multiplyScalar(0.55 + 0.15 * Math.sin(t * 2.4 + i)));
     });
     m.instanceMatrix.needsUpdate = true;
     if (m.instanceColor) m.instanceColor.needsUpdate = true;
