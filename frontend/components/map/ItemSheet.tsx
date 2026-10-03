@@ -47,7 +47,7 @@ export default function ItemSheet({ point, palette, onClose }: Props) {
           onDragEnd={(_, info) => {
             if (info.offset.y > 80 || info.velocity.y > 500) onClose();
           }}
-          className="glass fixed inset-x-0 bottom-0 z-20 mx-auto max-w-lg rounded-t-3xl bg-ink/70 px-5 pt-3 pb-[max(1.5rem,env(safe-area-inset-bottom))]"
+          className="fixed inset-x-0 bottom-0 z-20 mx-auto max-w-lg rounded-t-3xl border border-b-0 border-white/15 bg-ink/95 px-5 pt-3 pb-[max(1.5rem,env(safe-area-inset-bottom))] shadow-2xl shadow-black/60 backdrop-blur-xl"
         >
           <button
             onClick={onClose}

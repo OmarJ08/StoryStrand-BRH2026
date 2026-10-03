@@ -9,6 +9,10 @@ const FADE_START = 40;
 const FADE_END = 60;
 const GAP_TO_STAY_PX = 4;      // a shown label hides only when it really overlaps...
 const GAP_TO_SHOW_PX = 16;     // ...and a hidden one needs clear room to return (no flicker)
+const KEEP_CLEAR_PX = 48;      // space around the selected point that labels must avoid
+const DIM_OPACITY = 0.15;      // a label under the mouse fades to this, so dots show through
+const DIM_LEAVE_PX = 14;       // the cursor must get this far outside to undim it (no blink)
+const DIM_EASE = "180ms";
 
 export interface Centroid {
   label: string;
@@ -75,17 +79,20 @@ const overlaps = (a: Box, b: Box, gap: number) =>
 
 /**
  * Inside the Canvas: projects each centroid to the screen, fades labels as you zoom out,
- * and hides any label that would overlap one already placed. The active (hovered or
- * selected) neighborhood is placed first, then larger neighborhoods before smaller ones.
- * Hidden labels vanish at once and fade back in. A label under the mouse pointer hides too
- * (keeping its space, so nothing else pops in) so the dots beneath it stay reachable.
+ * and hides any label that would overlap one already placed. The active (selected)
+ * neighborhood is placed first, then larger neighborhoods before smaller ones.
+ * Hidden labels vanish at once and fade back in. A label under the mouse pointer dims
+ * (keeping its space, so nothing else pops in); it dims as soon as the cursor is inside
+ * it and undims only once the cursor is DIM_LEAVE_PX away, so edge jitter can't blink it.
  */
-export function LabelProjector({ centroids, refs, active }: {
+export function LabelProjector({ centroids, refs, active, keepClear }: {
   centroids: Centroid[];
   refs: LabelRefs;
   active: string | null;
+  keepClear: MapPoint | null;   // e.g. the selected point: no label may cover it
 }) {
   const shown = useRef<Map<string, boolean>>(new Map());
+  const dimmed = useRef<Map<string, boolean>>(new Map());
   const mouse = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
@@ -123,6 +130,15 @@ export function LabelProjector({ centroids, refs, active }: {
     });
 
     const placed: Box[] = [];
+    if (keepClear) {
+      v.set(keepClear.x, keepClear.y, keepClear.z).project(camera);
+      if (v.z <= 1) {
+        placed.push({
+          x: ((v.x + 1) / 2) * size.width, y: ((1 - v.y) / 2) * size.height,
+          w: KEEP_CLEAR_PX, h: KEEP_CLEAR_PX,
+        });
+      }
+    }
     for (const b of boxes) {
       if (!b.el) continue;
       const label = centroids[b.i].label;
@@ -131,11 +147,14 @@ export function LabelProjector({ centroids, refs, active }: {
       const fade = Math.min(1, Math.max(0, 1 - (d - FADE_START) / (FADE_END - FADE_START)));
       const hidden = b.behind || fade === 0 || placed.some((p) => overlaps(p, b, gap));
       const m = mouse.current;
-      const underCursor = !hidden && m !== null && overlaps(b, { x: m.x, y: m.y, w: 0, h: 0 }, 8);
+      const wasDim = dimmed.current.get(label) ?? false;
+      const cursor = m && { x: m.x, y: m.y, w: 0, h: 0 };
+      const dim = !hidden && cursor !== null && overlaps(b, cursor, wasDim ? 2 * DIM_LEAVE_PX : 0);
       shown.current.set(label, !hidden);
+      dimmed.current.set(label, dim);
       b.el.style.transform = `translate(${b.x.toFixed(1)}px, ${b.y.toFixed(1)}px) translate(-50%, -50%)`;
-      b.el.style.transitionDuration = hidden || underCursor ? "0s" : "";
-      b.el.style.opacity = hidden || underCursor ? "0" : fade.toFixed(2);
+      b.el.style.transitionDuration = hidden ? "0s" : dim || wasDim ? DIM_EASE : "";
+      b.el.style.opacity = hidden ? "0" : (dim ? DIM_OPACITY * fade : fade).toFixed(2);
       if (!hidden) placed.push(b);
     }
   });

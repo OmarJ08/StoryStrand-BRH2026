@@ -5,8 +5,9 @@ import { Canvas } from "@react-three/fiber";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
-import type { MapName, MapPoint } from "@/lib/types";
-import CameraRig from "./CameraRig";
+import SearchBox from "@/components/SearchBox";
+import type { MapName, MapPoint, SearchHit } from "@/lib/types";
+import CameraRig, { type Focus } from "./CameraRig";
 import { clusterPalette } from "./colors";
 import ItemSheet from "./ItemSheet";
 import { centroidsOf, LabelOverlay, LabelProjector } from "./Labels";
@@ -24,6 +25,7 @@ export default function MapExperience() {
   const [selection, setSelection] = useState<{ map: MapName; point: MapPoint } | null>(null);
   const [hover, setHover] = useState<{ map: MapName; point: MapPoint } | null>(null);
   const [autoRotate, setAutoRotate] = useState(true);
+  const [focus, setFocus] = useState<Focus | null>(null);
 
   useEffect(() => {
     if (data[map]) return;
@@ -35,7 +37,7 @@ export default function MapExperience() {
   const points = data[map];
   const selected = selection?.map === map ? selection.point : null;
   const hovered = hover?.map === map ? hover.point : null;
-  const activeLabel = (hovered ?? selected)?.cluster_label ?? null;
+  const activeLabel = selected?.cluster_label ?? null;   // hover must not reshuffle labels
   const palette = useMemo(() => clusterPalette((points ?? []).map((p) => p.cluster_label)), [points]);
   const centroids = useMemo(() => centroidsOf(points ?? []), [points]);
   const labelRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -47,6 +49,11 @@ export default function MapExperience() {
     (point: MapPoint | null) => setHover(point ? { map, point } : null),
     [map],
   );
+  const onSearch = (hit: SearchHit) => {
+    setSelection({ map, point: hit });
+    setFocus((f) => ({ point: hit, key: (f?.key ?? 0) + 1 }));
+    setAutoRotate(false);
+  };
 
   return (
     <>
@@ -60,11 +67,16 @@ export default function MapExperience() {
               selected={selected}
               hovered={hovered}
             />
-            <LabelProjector centroids={centroids} refs={labelRefs} active={activeLabel} />
+            <LabelProjector
+              centroids={centroids}
+              refs={labelRefs}
+              active={activeLabel}
+              keepClear={selected}
+            />
             <PointPicker points={points} onPick={onPick} onHover={onHover} />
           </>
         )}
-        <CameraRig map={map} />
+        <CameraRig map={map} focus={focus} />
         <OrbitControls
           makeDefault
           enableDamping
@@ -79,8 +91,14 @@ export default function MapExperience() {
 
       <LabelOverlay centroids={centroids} palette={palette} refs={labelRefs} active={activeLabel} />
 
-      <header className="pointer-events-none fixed inset-x-0 top-0 z-10 flex justify-center pt-[max(1rem,env(safe-area-inset-top))]">
+      <header className="pointer-events-none fixed inset-x-0 top-0 z-10 flex flex-col items-center gap-3 px-4 pt-[max(1rem,env(safe-area-inset-top))]">
         <MapSwitcher current={map} />
+        <SearchBox
+          key={map}
+          map={map}
+          placeholder={map === "books" ? "Search books or authors" : "Search topics and papers"}
+          onSelect={onSearch}
+        />
       </header>
 
       {!points && (

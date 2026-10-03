@@ -44,5 +44,15 @@ class MapPoint(BaseModel):
     z: float
 
 
+class SearchRequest(BaseModel):
+    map: MapName
+    query: str = Field(min_length=1, max_length=100)
+    limit: int = Field(default=8, ge=1, le=20)
+
+
+class SearchHit(MapPoint):
+    creators: list[str] = []
+
+
 def embedding_text(item: Item) -> str:
     return f"{item.title}. {', '.join(item.tags)}. {item.description}".strip()

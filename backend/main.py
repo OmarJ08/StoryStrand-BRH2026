@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 
 from backend.db.conn import get_conn
-from backend.models.item import MapName, MapPoint
+from backend.models.item import MapName, MapPoint, SearchHit, SearchRequest
 
 app = FastAPI(title="StoryStrand API")
 
@@ -45,3 +45,31 @@ def load_map(map_name: MapName) -> list[MapPoint]:
 def get_map(map: MapName, response: Response) -> list[MapPoint]:
     response.headers["Cache-Control"] = "public, max-age=300"
     return load_map(map)
+
+
+def like_escape(s: str) -> str:
+    return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+@app.post("/api/search")
+def search(req: SearchRequest) -> list[SearchHit]:
+    """Title lookup on one map: title prefix, then title contains, then author match;
+    ties go to the more popular item. Vibe (vector) search will extend this endpoint."""
+    q = like_escape(req.query.strip())
+    with get_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT id, type, title, cover_url, difficulty, cluster_label, x, y, z, creators
+            FROM items
+            WHERE map = %(map)s
+              AND (title ILIKE %(contains)s OR array_to_string(creators, ' ') ILIKE %(contains)s)
+            ORDER BY
+              (title ILIKE %(prefix)s) DESC,
+              (title ILIKE %(contains)s) DESC,
+              coalesce((attributes->>'ratings_count')::int, (attributes->>'pageviews_60d')::int, 0) DESC
+            LIMIT %(limit)s
+            """,
+            {"map": req.map, "contains": f"%{q}%", "prefix": f"{q}%", "limit": req.limit},
+        ).fetchall()
+    fields = SearchHit.model_fields.keys()
+    return [SearchHit(**dict(zip(fields, r))) for r in rows]
