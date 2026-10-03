@@ -7,6 +7,7 @@ import SearchBox from "@/components/SearchBox";
 import { api } from "@/lib/api";
 import { getGuestId, saveGuest } from "@/lib/guest";
 import type { GuestResponse, SearchHit } from "@/lib/types";
+import BackButton from "./BackButton";
 
 const PICKS = 5;
 
@@ -44,9 +45,10 @@ export default function OnboardingPicker() {
 
   return (
     <div className="fixed inset-0 z-20 flex flex-col bg-ink/80 backdrop-blur-sm">
-      <div className="mx-auto flex w-full max-w-2xl min-h-0 flex-1 flex-col px-4 pt-[max(1.25rem,env(safe-area-inset-top))]">
+      <BackButton onClick={() => router.push("/")} />
+      <div className="mx-auto flex w-full max-w-2xl min-h-0 flex-1 flex-col px-4 pt-[max(4.25rem,calc(env(safe-area-inset-top)+3rem))]">
         <h1 className="font-display text-2xl font-bold">Pick 5 books you loved</h1>
-        <p className="mt-1 text-sm text-white/60">We&apos;ll drop your pin on the Book Map and find where your curiosity lives.</p>
+        <p className="mt-1 text-sm text-white/60">We&apos;ll drop your pin on the Book Map and show your reading DNA.</p>
         <div className="mt-4">
           <SearchBox map="books" placeholder="Search any book or author" onSelect={(hit) => {
             if (!picked(hit.id)) toggle(hit);

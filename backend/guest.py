@@ -1,5 +1,5 @@
 """POST /api/guest: a guest's 5 book picks placed on both maps (Sections 9.4 and 10)."""
-from collections import Counter
+import re
 from functools import cache
 
 import numpy as np
@@ -14,6 +14,23 @@ from backend.models.item import DnaShare, GuestRequest, GuestResponse, MapName, 
 DNA_TEMPERATURE = 0.05
 CURIOSITY_NEIGHBORS = 20
 HIT_COLUMNS = "id, type, title, cover_url, difficulty, cluster_label, x, y, z, creators"
+
+# A curiosity pin only makes sense when sci-fi is a real part of the picks: raw book ->
+# knowledge similarity is weak, so a Gatsby + Anne Frank reader would otherwise land on stars.
+# Book tags are Goodreads shelves (e.g. Dune: "sf masterworks", "hugo award"; The Martian:
+# "mars", "science"); dystopia alone does not count.
+SCIFI_TAG = re.compile(
+    r"sci ?fi|science fiction|\bsf\b|space|alien|cyberpunk|\bmars\b|martian|robot|"
+    r"time travel|hugo|nebula|astronaut|planet|galac|starship|futuristic",
+    re.IGNORECASE,
+)
+SCIFI_NEIGHBORHOOD = re.compile(r"sci-?fi|space|cyberpunk", re.IGNORECASE)
+MIN_SCIFI_PICKS = 2
+
+
+def is_scifi(tags: list[str] | None, neighborhood: str | None) -> bool:
+    return bool(SCIFI_NEIGHBORHOOD.search(neighborhood or "")) or any(
+        SCIFI_TAG.search(t) for t in tags or [])
 
 
 def normalize(v: np.ndarray) -> np.ndarray:
@@ -47,7 +64,7 @@ def plan_guest(req: GuestRequest) -> GuestResponse:
     with get_conn() as conn:
         register_vector(conn)
         rows = conn.execute(
-            f"SELECT {HIT_COLUMNS}, map, embedding FROM items WHERE id = ANY(%s)", (req.book_ids,),
+            f"SELECT {HIT_COLUMNS}, map, embedding, tags FROM items WHERE id = ANY(%s)", (req.book_ids,),
         ).fetchall()
         found = {r[0]: r for r in rows}
         bad = [i for i in req.book_ids if i not in found or found[i][10] != "books"]
@@ -57,30 +74,34 @@ def plan_guest(req: GuestRequest) -> GuestResponse:
 
         centroid = normalize(np.mean([r[11].to_numpy() for r in picks], axis=0))
         book_dna = dna("books", centroid)
-        # Home is the picks' most common neighborhood (as for the curiosity pin): mixed picks
-        # pull the centroid toward a generic middle where the top DNA shares nearly tie.
-        dna_rank = {d.label: i for i, d in enumerate(book_dna)}
-        counts = Counter(r[5] for r in picks)
-        home = min(counts, key=lambda label: (-counts[label], dna_rank.get(label, len(dna_rank))))
+        # the headline neighborhood is the top DNA bar, so the panel reads consistently
         book_pin = Pin(x=float(np.mean([r[6] for r in picks])), y=float(np.mean([r[7] for r in picks])),
-                       z=float(np.mean([r[8] for r in picks])), home_cluster=home)
+                       z=float(np.mean([r[8] for r in picks])), home_cluster=book_dna[0].label)
 
-        near = conn.execute(
-            "SELECT x, y, z, cluster_label FROM items WHERE map = 'knowledge' "
-            "ORDER BY embedding <=> %s LIMIT %s",
-            (centroid, CURIOSITY_NEIGHBORS),
-        ).fetchall()
-        xyz = np.array([r[:3] for r in near], dtype=float).mean(axis=0)
-        curiosity_pin = Pin(x=float(xyz[0]), y=float(xyz[1]), z=float(xyz[2]),
-                            home_cluster=Counter(r[3] for r in near).most_common(1)[0][0],
-                            suggested=True)
+        scifi = [r[0] for r in picks if is_scifi(r[12], r[5])]
+        curiosity_pin = None
+        all_dna = {"books": book_dna}
+        if len(scifi) >= MIN_SCIFI_PICKS:
+            near = conn.execute(
+                "SELECT x, y, z FROM items WHERE map = 'knowledge' ORDER BY embedding <=> %s LIMIT %s",
+                (centroid, CURIOSITY_NEIGHBORS),
+            ).fetchall()
+            xyz = np.array(near, dtype=float).mean(axis=0)
+            all_dna["knowledge"] = dna("knowledge", centroid)
+            curiosity_pin = Pin(x=float(xyz[0]), y=float(xyz[1]), z=float(xyz[2]),
+                                home_cluster=all_dna["knowledge"][0].label, suggested=True)
 
         conn.execute(
             "INSERT INTO guests (guest_id, picks, centroid) VALUES (%s, %s, %s) "
             "ON CONFLICT (guest_id) DO UPDATE SET picks = EXCLUDED.picks, centroid = EXCLUDED.centroid",
             (req.guest_id, req.book_ids, centroid),
         )
-        for map_name, pin in (("books", book_pin), ("knowledge", curiosity_pin)):
+        pins = {"books": book_pin, "knowledge": curiosity_pin}
+        for map_name, pin in pins.items():
+            if pin is None:
+                conn.execute("DELETE FROM guest_positions WHERE guest_id = %s AND map = %s",
+                             (req.guest_id, map_name))
+                continue
             conn.execute(
                 "INSERT INTO guest_positions (guest_id, map, x, y, z, home_cluster) "
                 "VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT (guest_id, map) DO UPDATE SET "
@@ -94,7 +115,8 @@ def plan_guest(req: GuestRequest) -> GuestResponse:
         picks=[SearchHit(**dict(zip(fields, r[:10]))) for r in picks],
         book_pin=book_pin,
         curiosity_pin=curiosity_pin,
-        dna={"books": book_dna, "knowledge": dna("knowledge", centroid)},
+        scifi_picks=scifi,
+        dna=all_dna,
     )
 
 

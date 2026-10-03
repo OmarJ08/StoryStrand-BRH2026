@@ -50,7 +50,9 @@ export function useGuest(): GuestResponse | null {
   return useMemo(() => {
     if (!raw) return null;
     try {
-      return JSON.parse(raw) as GuestResponse;
+      const guest = JSON.parse(raw) as GuestResponse;
+      // results saved before the sci-fi gate lack scifi_picks: treat as stale, re-onboard
+      return Array.isArray(guest.scifi_picks) ? guest : null;
     } catch {
       return null;
     }

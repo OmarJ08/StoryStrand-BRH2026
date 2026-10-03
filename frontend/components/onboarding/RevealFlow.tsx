@@ -8,6 +8,7 @@ import { clusterPalette } from "@/components/map/colors";
 import { useScene } from "@/components/map/SceneContext";
 import { useGuest, useHydrated } from "@/lib/guest";
 import type { DnaShare, MapName, Pin } from "@/lib/types";
+import BackButton from "./BackButton";
 
 const TOP = 5;
 const PIN_DISTANCE = 11;
@@ -48,8 +49,9 @@ function DnaBars({ dna }: { dna: DnaShare[] }) {
 }
 
 /**
- * Reveal after onboarding: the Book Map pin drops and the reading DNA slides up; then a
- * portal jump to the Knowledge Map, where the suggested curiosity pin drops.
+ * Reveal after onboarding: the Book Map pin drops and the reading DNA slides up. When sci-fi
+ * is a real part of the picks, a portal jump to the Knowledge Map follows, where the
+ * suggested curiosity pin drops. Headlines always name the top DNA bar.
  */
 export default function RevealFlow() {
   const router = useRouter();
@@ -74,10 +76,13 @@ export default function RevealFlow() {
 
   if (!guest) return null;
 
+  const curiosity = guest.curiosity_pin;
+  const knowledgeDna = guest.dna.knowledge;
   const showCuriosity = () => {
+    if (!curiosity) return;
     setStep("knowledge");
     setMapOverride("knowledge");
-    setTimeout(() => flyTo(pinFocus(guest.curiosity_pin)), AFTER_PORTAL_MS);
+    setTimeout(() => flyTo(pinFocus(curiosity)), AFTER_PORTAL_MS);
   };
   const backToBooks = () => {
     setStep("books");
@@ -86,6 +91,11 @@ export default function RevealFlow() {
   };
 
   return (
+    <>
+    <BackButton
+      onClick={step === "knowledge" ? backToBooks : () => router.push("/onboarding")}
+      label={step === "knowledge" ? "My reading" : "Change picks"}
+    />
     <motion.section
       key={step}
       initial={{ y: "100%" }}
@@ -97,18 +107,29 @@ export default function RevealFlow() {
         <>
           <p className="text-xs uppercase tracking-wider text-coral">You are here</p>
           <h2 className="mt-1 font-display text-2xl font-bold leading-tight">
-            Your reading lives near <span className="text-coral">{guest.book_pin.home_cluster}</span>
+            Your reading lives near <span className="text-coral">{guest.dna.books[0].label}</span>
           </h2>
           <p className="mt-1 text-sm text-white/60">
             Your reading DNA, from {guest.picks.map((p) => p.title.replace(/\s*\(.*\)$/, "")).slice(0, 3).join(", ")} and more:
           </p>
           <DnaBars dna={guest.dna.books} />
-          <button onClick={showCuriosity}
-            className="mt-5 w-full rounded-full bg-coral py-3 font-display font-semibold text-ink">
-            See where your curiosity lives →
-          </button>
+          {curiosity ? (
+            <button onClick={showCuriosity}
+              className="mt-5 w-full rounded-full bg-coral py-3 font-display font-semibold text-ink">
+              See where your curiosity lives →
+            </button>
+          ) : (
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <Link href="/map/books" className="rounded-full bg-coral py-3 text-center font-display font-semibold text-ink">
+                Explore the Book Map
+              </Link>
+              <Link href="/onboarding" className="rounded-full border border-white/20 py-3 text-center font-display font-semibold">
+                Pick again
+              </Link>
+            </div>
+          )}
         </>
-      ) : (
+      ) : curiosity && knowledgeDna && (
         <>
           <p className="flex items-center gap-2 text-xs uppercase tracking-wider text-[#2fc4c4]">
             Your curiosity
@@ -117,13 +138,13 @@ export default function RevealFlow() {
             </span>
           </p>
           <h2 className="mt-1 font-display text-2xl font-bold leading-tight">
-            Your curiosity lives near <span className="text-[#2fc4c4]">{guest.curiosity_pin.home_cluster}</span>
+            Your curiosity lives near <span className="text-[#2fc4c4]">{knowledgeDna[0].label}</span>
           </h2>
           <p className="mt-1 text-sm text-white/60">
-            Placed from the 20 space-science topics closest to your books. It&apos;s a suggestion: books
-            and papers speak differently, so treat it as a starting point.
+            {guest.scifi_picks.length} of your 5 picks are science fiction, so here&apos;s the real science
+            nearest your taste. It&apos;s a suggestion: books and papers speak differently.
           </p>
-          <DnaBars dna={guest.dna.knowledge} />
+          <DnaBars dna={knowledgeDna} />
           <div className="mt-5 grid grid-cols-2 gap-2">
             <Link href="/route" className="rounded-full bg-coral py-3 text-center font-display font-semibold text-ink">
               Plan a learning route
@@ -132,12 +153,12 @@ export default function RevealFlow() {
               Explore the map
             </Link>
           </div>
-          <div className="mt-3 flex justify-between text-xs text-white/50">
-            <button onClick={backToBooks} className="hover:text-white">← Back to my reading</button>
+          <div className="mt-3 text-right text-xs text-white/50">
             <Link href="/onboarding" className="hover:text-white">Pick again</Link>
           </div>
         </>
       )}
     </motion.section>
+    </>
   );
 }

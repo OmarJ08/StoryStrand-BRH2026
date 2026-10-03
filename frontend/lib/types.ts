@@ -47,8 +47,9 @@ export interface GuestResponse {
   guest_id: string;
   picks: SearchHit[];
   book_pin: Pin;
-  curiosity_pin: Pin;
-  dna: Record<MapName, DnaShare[]>;
+  curiosity_pin: Pin | null;              // only when sci-fi is a real part of the picks
+  scifi_picks: string[];
+  dna: { books: DnaShare[]; knowledge?: DnaShare[] };
 }
 
 /** A route start or destination: typed text (matched by meaning) or a known item. */

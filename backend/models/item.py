@@ -99,8 +99,9 @@ class GuestResponse(BaseModel):
     guest_id: UUID
     picks: list[SearchHit]
     book_pin: Pin
-    curiosity_pin: Pin
-    dna: dict[MapName, list[DnaShare]]
+    curiosity_pin: Optional[Pin] = None   # only when sci-fi is a real part of the picks
+    scifi_picks: list[str] = []           # ids of the picks that count as sci-fi
+    dna: dict[MapName, list[DnaShare]]    # "knowledge" only alongside a curiosity pin
 
 
 class RouteEndpoint(BaseModel):
