@@ -1,6 +1,7 @@
 """POST /api/route for the Knowledge Map: resolve endpoints, route, enrich, save."""
 import secrets
 from typing import Literal
+from uuid import UUID
 
 import psycopg
 from fastapi import HTTPException
@@ -55,27 +56,33 @@ def plan_route(req: RouteRequest) -> RouteResponse:
         start = resolve(conn, req.start, "start")
         goal = resolve(conn, req.destination, "destination")
         path, relaxed = learning_route(start, goal, req.max_stops)
-        stop_ids = [g.ids[p] for p in path]
+        stops = load_stops(conn, [g.ids[p] for p in path])
+        route_id = save_route(conn, stops, "learning", relaxed, req.guest_id)
+    return RouteResponse(route_id=route_id, map="knowledge", kind="learning", relaxed=relaxed, stops=stops)
 
-        rows = conn.execute(f"SELECT {HIT_COLUMNS} FROM items WHERE id = ANY(%s)", (stop_ids,)).fetchall()
-        fields = SearchHit.model_fields.keys()
-        hits = {r[0]: SearchHit(**dict(zip(fields, r))) for r in rows}
-        sims = [None] + [s for (s,) in conn.execute(
-            "SELECT 1 - (a.embedding <=> b.embedding) "
-            "FROM unnest(%s::text[], %s::text[]) WITH ORDINALITY AS p(a_id, b_id, ord) "
-            "JOIN items a ON a.id = p.a_id JOIN items b ON b.id = p.b_id ORDER BY p.ord",
-            (stop_ids[:-1], stop_ids[1:]),
-        ).fetchall()]
 
-        route_id = f"r_{secrets.token_hex(3)}"
-        conn.execute(
-            "INSERT INTO routes (route_id, guest_id, map, kind, stops, notes, relaxed) "
-            "VALUES (%s, %s, 'knowledge', 'learning', %s, %s, %s)",
-            (route_id, req.guest_id, stop_ids, Jsonb({"status": "pending"}), relaxed),
-        )
+def load_stops(conn: psycopg.Connection, stop_ids: list[str]) -> list[RouteStop]:
+    """Stops in order, each with its cosine similarity (full 1024-d) to the previous stop."""
+    rows = conn.execute(f"SELECT {HIT_COLUMNS} FROM items WHERE id = ANY(%s)", (stop_ids,)).fetchall()
+    fields = SearchHit.model_fields.keys()
+    hits = {r[0]: SearchHit(**dict(zip(fields, r))) for r in rows}
+    sims = [None] + [s for (s,) in conn.execute(
+        "SELECT 1 - (a.embedding <=> b.embedding) "
+        "FROM unnest(%s::text[], %s::text[]) WITH ORDINALITY AS p(a_id, b_id, ord) "
+        "JOIN items a ON a.id = p.a_id JOIN items b ON b.id = p.b_id ORDER BY p.ord",
+        (stop_ids[:-1], stop_ids[1:]),
+    ).fetchall()]
+    return [RouteStop(item=hits[i], step_similarity=None if s is None else round(float(s), 3))
+            for i, s in zip(stop_ids, sims)]
 
-    return RouteResponse(
-        route_id=route_id, map="knowledge", kind="learning", relaxed=relaxed,
-        stops=[RouteStop(item=hits[i], step_similarity=None if s is None else round(float(s), 3))
-               for i, s in zip(stop_ids, sims)],
+
+def save_route(conn: psycopg.Connection, stops: list[RouteStop], kind: Literal["learning", "bridge"],
+               relaxed: bool, guest_id: UUID | None) -> str:
+    """Insert a knowledge-map route with pending notes; returns its id."""
+    route_id = f"r_{secrets.token_hex(3)}"
+    conn.execute(
+        "INSERT INTO routes (route_id, guest_id, map, kind, stops, notes, relaxed) "
+        "VALUES (%s, %s, 'knowledge', %s, %s, %s, %s)",
+        (route_id, guest_id, kind, [s.item.id for s in stops], Jsonb({"status": "pending"}), relaxed),
     )
+    return route_id

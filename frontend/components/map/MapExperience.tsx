@@ -3,12 +3,16 @@
 import { OrbitControls } from "@react-three/drei";
 import { Canvas } from "@react-three/fiber";
 import Link from "next/link";
-import { useParams, usePathname } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import SearchBox from "@/components/SearchBox";
-import type { MapName, MapPoint, SearchHit } from "@/lib/types";
-import CameraRig, { pointFocus, ViewShift } from "./CameraRig";
+import Logo from "@/components/Logo";
+import { unlockAudio } from "@/components/route/useRoutePlayer";
+import { getGuestId } from "@/lib/guest";
+import type { MapName, MapPoint, Pin, RouteResponse, SearchHit } from "@/lib/types";
+import CameraRig, { pointFocus, pointsFocus, ViewShift } from "./CameraRig";
+import { TrafficBadge, TrafficPulse, useTraffic } from "./Traffic";
 import { clusterPalette } from "./colors";
 import ItemSheet from "./ItemSheet";
 import { centroidsOf, LabelOverlay, LabelProjector } from "./Labels";
@@ -35,10 +39,13 @@ export default function MapExperience() {
   const onRoute = pathname === "/route";
   const onMapPage = pathname.startsWith("/map/");
   const onReveal = pathname === "/onboarding/reveal";
-  const { route, selection, setSelection, focus, flyTo, activeStop, mapOverride } = useScene();
+  const router = useRouter();
+  const {
+    route, setRoute, selection, setSelection, focus, flyTo, activeStop, setActiveStop, mapOverride, setAutoplay,
+  } = useScene();
   const map: MapName = mapOverride ?? (onRoute || params.map === "knowledge" ? "knowledge" : "books");
   const guest = useGuest();
-  const pin = guest ? (map === "books" ? guest.book_pin : guest.curiosity_pin) : null;
+  const guestPin = guest ? (map === "books" ? guest.book_pin : guest.curiosity_pin) : null;
   const pinLabel = useRef<HTMLDivElement>(null);
   const placePinLabel = useCallback((x: number, y: number, visible: boolean) => {
     const el = pinLabel.current;
@@ -61,6 +68,14 @@ export default function MapExperience() {
 
   const points = data[map];
   const showRoute = onRoute && route !== null;
+  // Explorers (no pin of their own on this map) start at the centre of the map's cloud.
+  const explorerPin = useMemo<Pin | null>(() => {
+    if (!points?.length) return null;
+    const n = points.length;
+    const c = points.reduce((a, p) => ({ x: a.x + p.x / n, y: a.y + p.y / n, z: a.z + p.z / n }), { x: 0, y: 0, z: 0 });
+    return { ...c, home_cluster: "", suggested: false };
+  }, [points]);
+  const pin = guestPin ?? (onMapPage ? explorerPin : null);
   const selected = selection?.map === map ? selection.point : null;
   const hovered = hover?.map === map ? hover.point : null;
   const activeLabel = selected?.cluster_label ?? null;   // hover must not reshuffle labels
@@ -88,6 +103,22 @@ export default function MapExperience() {
     setSelection({ map, point: hit });
     flyTo(pointFocus(hit));
   };
+  // "Learn the real science": unlock audio inside the tap, build the bridge route, then
+  // fly to the Knowledge Map; /route starts the narration once its clips are ready.
+  const onLearn = async (book: MapPoint) => {
+    unlockAudio();
+    const r = await api<RouteResponse>("/api/bridge/learn", {
+      method: "POST",
+      body: JSON.stringify({ book_id: book.id, guest_id: getGuestId() }),
+    });
+    setRoute(r);
+    setActiveStop(null);
+    setSelection(null);
+    setAutoplay(true);
+    flyTo(pointsFocus(r.stops.map((s) => s.item)));
+    router.push("/route");
+  };
+  const traffic = useTraffic(map, onMapPage);
 
   return (
     <>
@@ -109,11 +140,12 @@ export default function MapExperience() {
               keepClear={keepClear}
             />
             <PointPicker points={points} onPick={onPick} onHover={onHover} />
+            {traffic && <TrafficPulse centroids={centroids} palette={palette} traffic={traffic} />}
           </>
         )}
         {showRoute && <RouteLine route={route} active={activeStop} />}
-        {pin && guest && (
-          <group key={`${guest.guest_id}-${map}-${pin.x}`}>
+        {pin && (
+          <group key={`${guest?.guest_id ?? "explorer"}-${map}-${pin.x}`}>
             <GuestPin pin={pin} color={PIN_COLOR[map]} />
             <PinLabelProjector pin={pin} onFrame={placePinLabel} />
           </group>
@@ -143,6 +175,17 @@ export default function MapExperience() {
       )}
 
       {onMapPage && (
+        <Link
+          href="/"
+          aria-label="Back to the start"
+          className="fixed top-[max(1rem,env(safe-area-inset-top))] left-4 z-20 flex items-center gap-2 rounded-full border border-white/15 bg-ink/90 py-1.5 pr-3.5 pl-2 text-sm font-medium shadow-lg shadow-black/40 backdrop-blur-md hover:bg-ink"
+        >
+          <Logo variant="mark" size="sm" />
+          <span className="hidden sm:inline">Home</span>
+        </Link>
+      )}
+
+      {onMapPage && (
         <header className="pointer-events-none fixed inset-x-0 top-0 z-10 flex flex-col items-center gap-3 px-4 pt-[max(1rem,env(safe-area-inset-top))]">
           <MapSwitcher current={map} />
           <SearchBox
@@ -151,6 +194,12 @@ export default function MapExperience() {
             placeholder={map === "books" ? "Search books or authors" : "Search topics and papers"}
             onSelect={onSearch}
           />
+          {!guest && map === "books" && (
+            <Link href="/onboarding"
+              className="pointer-events-auto rounded-full bg-ink/80 px-3 py-1 text-xs text-white/70 backdrop-blur hover:text-white">
+              You&apos;re at the centre for now. <span className="text-coral">Pick 5 books</span> to place yourself
+            </Link>
+          )}
           {map === "knowledge" && (
             <Link
               href="/route"
@@ -168,7 +217,9 @@ export default function MapExperience() {
         </p>
       )}
 
-      <ItemSheet point={selected} palette={palette} onClose={() => setSelection(null)} />
+      {onMapPage && traffic && !selected && <TrafficBadge traffic={traffic} />}
+      <ItemSheet point={selected} palette={palette} onClose={() => setSelection(null)}
+        onLearn={map === "books" ? onLearn : undefined} />
     </>
   );
 }

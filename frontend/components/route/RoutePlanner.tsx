@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import SearchBox from "@/components/SearchBox";
 import { pointFocus, pointsFocus } from "@/components/map/CameraRig";
 import { useScene } from "@/components/map/SceneContext";
@@ -57,7 +57,7 @@ function Field({ label, pick, onPick, placeholder }: {
 
 /** Start + destination inputs; the route is drawn on the shared map via SceneContext. */
 export default function RoutePlanner() {
-  const { route, setRoute, setSelection, flyTo, setActiveStop } = useScene();
+  const { route, setRoute, setSelection, flyTo, setActiveStop, autoplay, setAutoplay } = useScene();
   const narration = useNarration(route);
   const player = useRoutePlayer(
     narration.status === "ready" ? narration.clips : null,
@@ -73,6 +73,15 @@ export default function RoutePlanner() {
       if (route) flyTo(pointsFocus(route.stops.map((s) => s.item)));
     },
   );
+  // "Learn the real science" asked for a hands-free tour: start once the clips are in
+  // (the tap that asked for it already unlocked audio, see unlockAudio)
+  const { start: startTour } = player;
+  useEffect(() => {
+    if (!autoplay || narration.status === "preparing") return;
+    setAutoplay(false);
+    if (narration.status === "ready") startTour();
+  }, [autoplay, narration.status, setAutoplay, startTour]);
+
   const [start, setStart] = useState<Pick | null>(null);
   const [destination, setDestination] = useState<Pick | null>(null);
   const [editing, setEditing] = useState(false);
@@ -103,9 +112,19 @@ export default function RoutePlanner() {
       <header className="pointer-events-none fixed inset-x-0 top-0 z-20 flex justify-center px-4 pt-[max(1rem,env(safe-area-inset-top))]">
         <div className="pointer-events-auto w-full max-w-md space-y-2 rounded-3xl border border-white/15 bg-ink/90 p-3 shadow-2xl shadow-black/50 backdrop-blur-xl">
           <div className="flex items-center justify-between px-1">
-            <h1 className="font-display text-base font-semibold">Learning route</h1>
-            <Link href="/map/knowledge" className="text-xs text-white/50 hover:text-white">← Map</Link>
+            <h1 className="min-w-0 truncate font-display text-base font-semibold">
+              {route?.book && !editing ? `The real science of ${route.book.title}` : "Learning route"}
+            </h1>
+            <Link href={route?.book && !editing ? "/map/books" : "/map/knowledge"}
+              className="shrink-0 pl-2 text-xs text-white/50 hover:text-white">← Map</Link>
           </div>
+          {route?.book && !editing && route.concepts.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 px-1">
+              {route.concepts.map((c) => (
+                <span key={c} className="rounded-full bg-teal/30 px-2.5 py-0.5 text-[11px] text-white/85">{c}</span>
+              ))}
+            </div>
+          )}
           {route && !editing ? (
             // collapsed once a route is showing, so the map has room
             <div className="flex items-center gap-2 px-1">

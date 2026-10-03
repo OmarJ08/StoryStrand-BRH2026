@@ -29,6 +29,15 @@ export interface ItemDetail extends SearchHit {
   links: { label: string; url: string }[];
 }
 
+/** POST /api/books/estimate: a book outside the dataset, placed by estimate. */
+export interface EstimatedBook extends SearchHit {
+  estimated: true;
+  description: string;
+  tags: string[];
+  nearest_titles: string[];
+  found_online: boolean;
+}
+
 export interface Pin {
   x: number;
   y: number;
@@ -67,10 +76,29 @@ export type NotesStatus = "pending" | "ready" | "none";
 export interface RouteResponse {
   route_id: string;
   map: MapName;
-  kind: "learning";
+  kind: "learning" | "bridge";
   relaxed: boolean;
   stops: RouteStop[];
   notes_status: NotesStatus;
+  /** bridge routes only ("Learn the real science"): the book and its concepts */
+  book: SearchHit | null;
+  concepts: string[];
+}
+
+/** GET /api/traffic?map= */
+export interface NeighborhoodTraffic {
+  label: string;
+  visits: number;   // last window_minutes
+  recent: number;   // last recent_seconds
+}
+
+export interface TrafficResponse {
+  map: MapName;
+  window_minutes: number;
+  recent_seconds: number;
+  real_visits: number;
+  simulated_visits: number;
+  neighborhoods: NeighborhoodTraffic[];
 }
 
 /** GET /api/route/:id/notes */

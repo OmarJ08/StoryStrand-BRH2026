@@ -115,9 +115,11 @@ def describe(stops: list[dict]) -> str:
     return "Route stops:\n" + "\n".join(lines)
 
 
-def generate(stops: list[dict]) -> tuple[list[str] | None, str]:
-    """Notes for the stops, or (None, reason). One retry on a rule violation."""
-    messages = [{"role": "system", "content": SYSTEM}, {"role": "user", "content": describe(stops)}]
+def generate(stops: list[dict], context: str | None = None) -> tuple[list[str] | None, str]:
+    """Notes for the stops, or (None, reason). One retry on a rule violation.
+    context: optional framing for the guide, e.g. the book a bridge route starts from."""
+    user = f"{context}\n\n{describe(stops)}" if context else describe(stops)
+    messages = [{"role": "system", "content": SYSTEM}, {"role": "user", "content": user}]
     deadline = time.monotonic() + TIMEOUT_S
     for attempt in range(2):
         remaining = deadline - time.monotonic()
@@ -144,7 +146,7 @@ def generate(stops: list[dict]) -> tuple[list[str] | None, str]:
     return None, "rule violations after retry: " + "; ".join(found)
 
 
-def run_notes_job(route_id: str) -> None:
+def run_notes_job(route_id: str, context: str | None = None) -> None:
     """Background task: write ready/none notes onto the saved route."""
     with get_conn() as conn:
         (stop_ids,) = conn.execute("SELECT stops FROM routes WHERE route_id = %s", (route_id,)).fetchone()
@@ -154,7 +156,7 @@ def run_notes_job(route_id: str) -> None:
         ).fetchall()
         by_id = {r[0]: dict(zip(("id", "title", "type", "difficulty", "cluster_label", "description"), r))
                  for r in rows}
-        notes, reason = generate([by_id[i] for i in stop_ids])
+        notes, reason = generate([by_id[i] for i in stop_ids], context)
         payload = {"status": "ready", "notes": notes} if notes else {"status": "none", "reason": reason}
         conn.execute("UPDATE routes SET notes = %s WHERE route_id = %s", (Jsonb(payload), route_id))
     print(f"[notes] {route_id}: {payload['status']} ({reason})")

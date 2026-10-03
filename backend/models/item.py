@@ -70,6 +70,19 @@ class ItemDetail(SearchHit):
     links: list[ItemLink] = []  # first is the primary "open" link
 
 
+class EstimateRequest(BaseModel):
+    query: str = Field(min_length=2, max_length=120)   # title, optionally with author
+
+
+class EstimatedBook(SearchHit):
+    """A book outside the dataset, placed on the Book Map by estimate (POST /api/books/estimate)."""
+    estimated: bool = True
+    description: str = ""
+    tags: list[str] = []
+    nearest_titles: list[str] = []   # the real books it landed closest to
+    found_online: bool = False       # False when Open Library had no match (qwen guessed alone)
+
+
 class GuestRequest(BaseModel):
     guest_id: UUID
     book_ids: list[str] = Field(min_length=5, max_length=5)
@@ -136,10 +149,34 @@ NotesStatus = Literal["pending", "ready", "none"]
 class RouteResponse(BaseModel):
     route_id: str
     map: MapName
-    kind: Literal["learning"]
+    kind: Literal["learning", "bridge"]
     relaxed: bool                               # True when the strict climb had no path
     stops: list[RouteStop]
     notes_status: NotesStatus = "pending"       # notes are generated in the background
+    # bridge routes only ("Learn the real science", Section 10)
+    book: Optional[SearchHit] = None
+    concepts: list[str] = []
+
+
+class BridgeLearnRequest(BaseModel):
+    book_id: str
+    guest_id: Optional[UUID] = None
+    max_stops: int = Field(default=5, ge=2, le=12)
+
+
+class NeighborhoodTraffic(BaseModel):
+    label: str
+    visits: int                                 # last window_minutes (continuous aggregate)
+    recent: int                                 # last recent_seconds, for the live ping
+
+
+class TrafficResponse(BaseModel):
+    map: MapName
+    window_minutes: int
+    recent_seconds: int
+    real_visits: int
+    simulated_visits: int                       # > 0 means the UI must say "simulated"
+    neighborhoods: list[NeighborhoodTraffic]
 
 
 class RouteNotes(BaseModel):

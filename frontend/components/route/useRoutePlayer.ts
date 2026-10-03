@@ -11,17 +11,32 @@ export interface Player {
   stop: () => void;
 }
 
+const SILENT_WAV = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+
 /**
- * Plays one clip per stop in order through a single reusable <audio> element. It is
- * created and first played inside the button tap, because iPhone Safari only allows
- * audio started by a user gesture; later clips reuse the same, now unlocked, element.
+ * One <audio> element for the whole app. iPhone Safari only plays audio started by a user
+ * gesture, but an element that has played once inside a tap stays unlocked; so the first
+ * play happens in a tap ("Start route", or unlockAudio() in "Learn the real science") and
+ * every later clip reuses the element, even after a page change.
  */
+let shared: HTMLAudioElement | null = null;
+const sharedAudio = () => (shared ??= new Audio());
+
+/** Call inside a tap handler when narration should be able to start later on its own. */
+export function unlockAudio(): void {
+  const a = sharedAudio();
+  if (!a.paused) return;
+  a.onended = null;
+  a.src = SILENT_WAV;
+  void a.play().catch(() => {});
+}
+
+/** Plays one clip per stop in order through the shared element. */
 export function useRoutePlayer(
   clips: string[] | null,
   onStop: (index: number) => void,
   onDone: () => void,
 ): Player {
-  const audio = useRef<HTMLAudioElement | null>(null);
   const current = useRef(0);
   const latest = useRef({ clips, onStop, onDone });
   const [state, setState] = useState<{ index: number; playing: boolean } | null>(null);
@@ -32,14 +47,14 @@ export function useRoutePlayer(
 
   // a new route (new clips) ends any narration in progress
   useEffect(() => () => {
-    audio.current?.pause();
+    shared?.pause();
     setState(null);
   }, [clips]);
 
   const playAt = (i: number) => {
-    const a = audio.current;
     const list = latest.current.clips;
-    if (!a || !list) return;
+    if (!list) return;
+    const a = sharedAudio();
     current.current = i;
     latest.current.onStop(i);
     a.src = list[i];
@@ -49,19 +64,15 @@ export function useRoutePlayer(
 
   const start = () => {
     if (!clips?.length) return;
-    if (!audio.current) {
-      const a = new Audio();
-      a.addEventListener("ended", () => {
-        const next = current.current + 1;
-        if (next < (latest.current.clips?.length ?? 0)) {
-          playAt(next);
-        } else {
-          setState(null);
-          latest.current.onDone();
-        }
-      });
-      audio.current = a;
-    }
+    sharedAudio().onended = () => {
+      const next = current.current + 1;
+      if (next < (latest.current.clips?.length ?? 0)) {
+        playAt(next);
+      } else {
+        setState(null);
+        latest.current.onDone();
+      }
+    };
     playAt(0);
   };
 
@@ -70,15 +81,15 @@ export function useRoutePlayer(
     playing: state?.playing ?? false,
     start,
     pause: () => {
-      audio.current?.pause();
+      shared?.pause();
       setState((s) => s && { ...s, playing: false });
     },
     resume: () => {
-      void audio.current?.play();
+      void shared?.play();
       setState((s) => s && { ...s, playing: true });
     },
     stop: () => {
-      audio.current?.pause();
+      shared?.pause();
       setState(null);
       latest.current.onDone();
     },
