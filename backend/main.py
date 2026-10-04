@@ -2,10 +2,12 @@ from contextlib import asynccontextmanager
 from functools import cache
 
 import httpx
+import numpy as np
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse
+from pgvector.psycopg import register_vector
 
 from backend.bridge import bridge_context, learn
 from backend.db.conn import get_conn
@@ -17,10 +19,12 @@ from backend.models.item import (BridgeLearnRequest, DbStats, EstimatedBook, Est
                                  GuestRequest, GuestResponse, ItemDetail, ItemLink, MapName, MapPoint,
                                  Portal, RouteNotes,
                                  RouteRequest, RouteResponse, RouteVoice, SearchHit, SearchRequest,
-                                 SimulationState, TrafficResponse, VoiceClip)
+                                 SimulationState, SteerRequest, TrafficResponse, VoiceClip)
+from backend.routing import graph as graph_module
 from backend.routing.graph import load_graph
+from backend.routing.neighborhoods import load_in_background as load_neighborhoods
 from backend.routing.notes import run_notes_job
-from backend.routing.service import plan_route
+from backend.routing.service import HIT_COLUMNS, plan_route
 from backend.simulator import simulator
 from backend.stats import db_stats
 from backend.voice import VOICE, clip_path, ensure_clips
@@ -29,6 +33,7 @@ from backend.voice import VOICE, clip_path, ensure_clips
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     load_graph()
+    load_neighborhoods({m: g.ids for m, g in (("knowledge", graph_module.graph), ("books", graph_module.books)) if g})
     warm_in_background()
     yield
 
@@ -164,13 +169,36 @@ def books_popular(limit: int = Query(default=30, ge=1, le=100)) -> list[SearchHi
 
 @app.post("/api/route")
 def route(req: RouteRequest, background: BackgroundTasks) -> RouteResponse:
-    """Learning route on the Knowledge Map (Section 9.3): strict climb, soft fallback.
-    Tour-guide notes are generated afterwards; poll GET /api/route/{id}/notes."""
+    """Learning route on the Knowledge Map (Section 9.3: strict climb, soft fallback) or taste
+    route on the Book Map (Section 9.2), optionally scenic. Learning routes get tour-guide
+    notes afterwards; poll GET /api/route/{id}/notes."""
     planned = plan_route(req)
-    background.add_task(run_notes_job, planned.route_id)
+    if planned.notes_status == "pending":
+        background.add_task(run_notes_job, planned.route_id)
     background.add_task(log_events, stop_rows(
-        "route", "knowledge", [s.item for s in planned.stops], planned.route_id, req.guest_id))
+        "route", req.map, [s.item for s in planned.stops], planned.route_id, req.guest_id))
     return planned
+
+
+@app.post("/api/steer")
+def steer(req: SteerRequest) -> list[SearchHit]:
+    """Steer (Section 9.4): q = normalize(A + s(B - A)); the nearest books to q, excluding A, B
+    and anything by their authors (series and box sets otherwise fill the list at every s)."""
+    with get_conn() as conn:
+        register_vector(conn)
+        found = {r[0]: r[1:] for r in conn.execute(
+            "SELECT id, embedding, coalesce(creators, '{}') FROM items WHERE map = 'books' AND id IN (%s, %s)",
+            (req.a_id, req.b_id)).fetchall()}
+        if len(found) < 2:
+            raise HTTPException(422, "both a_id and b_id must be books")
+        (a, a_by), (b, b_by) = found[req.a_id], found[req.b_id]
+        q = a.to_numpy() + req.s * (b.to_numpy() - a.to_numpy())
+        rows = conn.execute(
+            f"SELECT {HIT_COLUMNS} FROM items WHERE map = 'books' AND id NOT IN (%s, %s) "
+            "AND NOT coalesce(creators && %s::text[], false) ORDER BY embedding <=> %s LIMIT %s",
+            (req.a_id, req.b_id, [*a_by, *b_by], q / np.linalg.norm(q), req.k)).fetchall()
+    fields = SearchHit.model_fields.keys()
+    return [SearchHit(**dict(zip(fields, r))) for r in rows]
 
 
 @app.post("/api/bridge/learn")
