@@ -16,3 +16,15 @@ body {
   color: #e8f1f1;
   background: var(--color-ink);
 }
+
+/* one soft halo on a label's traffic dot when a poll brings fresh visits */
+@keyframes traffic-flash {
+  from { transform: scale(1); opacity: 0.8; }
+  to { transform: scale(3.5); opacity: 0; }
+}
+.traffic-flash {
+  animation: traffic-flash 900ms ease-out forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .traffic-flash { display: none; }
+}

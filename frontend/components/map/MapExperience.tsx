@@ -13,8 +13,8 @@ import { getGuestId } from "@/lib/guest";
 import { BAKED_BRIDGES, bakedBridgeFile } from "@/lib/presets";
 import type { BakedBridge, MapName, MapPoint, Pin, Portal, RouteResponse, SearchHit } from "@/lib/types";
 import CameraRig, { pointFocus, pointsFocus, ViewShift } from "./CameraRig";
-import { PortalMarkers, usePortals } from "./Portals";
-import { TrafficBadge, TrafficPulse, useTraffic } from "./Traffic";
+import { usePortals } from "./Portals";
+import { TrafficBadge, useTraffic } from "./Traffic";
 import UnderTheHood from "./UnderTheHood";
 import { clusterPalette } from "./colors";
 import ItemSheet from "./ItemSheet";
@@ -191,8 +191,6 @@ export default function MapExperience() {
               keepClear={keepClear}
             />
             <PointPicker points={points} onPick={onPick} onHover={onHover} />
-            {traffic && <TrafficPulse centroids={centroids} palette={palette} traffic={traffic} />}
-            {portals && <PortalMarkers portals={portals} />}
           </>
         )}
         {showRoute && <RouteLine route={route} active={activeStop} />}
@@ -216,7 +214,7 @@ export default function MapExperience() {
         />
       </Canvas>
 
-      <LabelOverlay centroids={centroids} palette={palette} refs={labelRefs} active={activeLabel} />
+      <LabelOverlay centroids={centroids} palette={palette} refs={labelRefs} active={activeLabel} traffic={traffic} />
       {pin && (
         <PinLabel
           key={map}

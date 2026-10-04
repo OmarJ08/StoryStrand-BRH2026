@@ -16,9 +16,10 @@ drops: you are here. Your reading DNA shows which neighborhoods you live in. If 
 a real part of your mix, a second pin suggests where your curiosity lives on the Knowledge Map.
 Open a book like *The Martian*, tap **Learn the real science**, and the view flies to the
 Knowledge Map, where a route climbs like a mountain path, one difficulty level at a time, from an
-encyclopedia article to research papers while a voice guide narrates each stop. Gold rings mark
-portals: books and articles that are each other's best match, one tap away across the two maps.
-A live traffic layer shows which neighborhoods people are exploring.
+encyclopedia article to research papers while a voice guide narrates each stop. Portals link
+books and articles that are each other's best match, one tap away across the two maps from the
+item sheet. Live traffic shows on the neighborhood labels: a visit count and a coral dot that is
+brighter where people are exploring.
 
 Built at Big Red Hacks 2026 for the SpaceX track and Best Use of Tiger Data.
 

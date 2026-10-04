@@ -187,8 +187,9 @@ Human Spaceflight Systems.
   Demo books: The Martian, Ender's Game, Rendezvous with Rama, Contact, Red Mars.
 - **Events / traffic**: search, stop_click (item sheet open), route (per stop) and learn events are
   written to `events` in background tasks. The simulator (`backend/simulator.py`, toggled by the
-  hidden home-page switch) adds `simulated = true` events; the map shows breathing glows + pings
-  per neighborhood and a "simulated" badge.
+  hidden home-page switch) adds `simulated = true` events; each neighborhood label shows its
+  30-min visit count and a coral dot (brighter = busier, flashes once per poll with fresh visits),
+  plus a "simulated" badge. No glows, pings or portal rings in the scene.
 - **Portals**: mutual top-3 by cosine between books and knowledge items, similarity ≥ 0.60, cap 300
   (`data/scripts/build_portals.py`, exact numpy by default, `--in-db` SQL lateral join optional).
 - **Book Map layout**: 3D UMAP supervised by cluster labels (weight 0.05) + 3-SD outlier clip.
