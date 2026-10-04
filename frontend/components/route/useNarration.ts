@@ -23,7 +23,7 @@ export function useNarration(route: RouteResponse | null): Narration {
   const [state, setState] = useState<{ routeId: string; narration: Narration } | null>(null);
 
   useEffect(() => {
-    if (!route || route.baked) return;
+    if (!route || route.baked || route.notes_status === "none") return;
     const id = route.route_id;
     let cancelled = false;
     const urls: string[] = [];
@@ -55,7 +55,7 @@ export function useNarration(route: RouteResponse | null): Narration {
     };
   }, [route]);
 
-  if (!route) return { status: "none" };
+  if (!route || route.notes_status === "none") return { status: "none" };   // e.g. taste routes
   if (route.baked) return { status: "ready", ...route.baked };   // shipped with the site
   return state?.routeId === route.route_id ? state.narration : { status: "preparing" };
 }

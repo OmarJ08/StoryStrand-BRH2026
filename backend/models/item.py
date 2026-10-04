@@ -119,14 +119,16 @@ class GuestResponse(BaseModel):
 
 
 class RouteEndpoint(BaseModel):
-    """A route start or destination: typed text (matched by meaning) or a known item."""
+    """A route start or destination: typed text (matched by meaning), a known item, or
+    (book map starts only) the guest's own position, "You are here"."""
     text: Optional[str] = Field(default=None, min_length=1, max_length=200)
     item_id: Optional[str] = None
+    guest: bool = False
 
     @model_validator(mode="after")
     def exactly_one(self) -> "RouteEndpoint":
-        if (self.text is None) == (self.item_id is None):
-            raise ValueError("give exactly one of text or item_id")
+        if (self.text is not None) + (self.item_id is not None) + self.guest != 1:
+            raise ValueError("give exactly one of text, item_id or guest")
         return self
 
 
@@ -136,6 +138,12 @@ class RouteRequest(BaseModel):
     destination: RouteEndpoint
     max_stops: int = Field(default=6, ge=2, le=12)
     guest_id: Optional[UUID] = None
+    scenic: bool = False                        # detour through a neighborhood the route skips
+
+
+class ScenicDetour(BaseModel):
+    label: str                                  # the neighborhood the route detours through
+    waypoint_id: str                            # its most central item, a stop on the route
 
 
 class RouteStop(BaseModel):
@@ -150,13 +158,22 @@ NotesStatus = Literal["pending", "ready", "none"]
 class RouteResponse(BaseModel):
     route_id: str
     map: MapName
-    kind: Literal["learning", "bridge"]
+    kind: Literal["learning", "bridge", "taste"]
     relaxed: bool                               # True when the strict climb had no path
     stops: list[RouteStop]
     notes_status: NotesStatus = "pending"       # notes are generated in the background
+    scenic: Optional[ScenicDetour] = None       # set when a scenic detour was asked for and found
     # bridge routes only ("Learn the real science", Section 10)
     book: Optional[SearchHit] = None
     concepts: list[str] = []
+
+
+class SteerRequest(BaseModel):
+    """Steer (Section 9.4): books like A, moved toward B by s (0 = like A, 1 = like B)."""
+    a_id: str
+    b_id: str
+    s: float = Field(default=0.5, ge=0, le=1)
+    k: int = Field(default=8, ge=1, le=20)
 
 
 class BridgeLearnRequest(BaseModel):

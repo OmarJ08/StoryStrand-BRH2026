@@ -17,9 +17,15 @@ export function levelColor(level: number | null): Color {
   return LOW.clone().lerp(HIGH, ((level ?? 1) - 1) / 4);
 }
 
-/** A route stop raised by its difficulty: difficulty drawn as literal elevation. */
+/** A stop's colour on the route: its level, or plain coral for books (no levels). */
+function stopColor(p: MapPoint): Color {
+  return p.difficulty === null ? HIGH.clone() : levelColor(p.difficulty);
+}
+
+/** A route stop raised by its difficulty: difficulty drawn as literal elevation. Books have
+ *  no difficulty and stay on the map. */
 export function liftedPoint<P extends MapPoint>(p: P): P {
-  return { ...p, y: p.y + (p.difficulty ?? 1) * LIFT_PER_LEVEL };
+  return { ...p, y: p.y + (p.difficulty ?? 0) * LIFT_PER_LEVEL };
 }
 
 type V3 = [number, number, number];
@@ -47,7 +53,7 @@ export default function RouteLine({ route, active }: { route: RouteResponse; act
     return [p.x, p.y, p.z] as V3;
   }), [route]);
   const colors = useMemo(
-    () => route.stops.map((s) => levelColor(s.item.difficulty).toArray() as V3), [route]);
+    () => route.stops.map((s) => stopColor(s.item).toArray() as V3), [route]);
   const climb = useRef<ComponentRef<typeof Line>>(null);
   const drawn = useRef(0);
   const applied = useRef(-1);
@@ -77,7 +83,7 @@ export default function RouteLine({ route, active }: { route: RouteResponse; act
       <Line points={top} vertexColors={colors} lineWidth={2} transparent opacity={0.3} depthTest={false} />
       <Line ref={climb} points={top.slice(0, 2)} vertexColors={colors.slice(0, 2)} lineWidth={5}
         transparent depthTest={false} />
-      {items.map((p, i) => (
+      {items.map((p, i) => p.difficulty !== null && (
         <Line key={`stem-${p.id}`} points={[[p.x, p.y, p.z], top[i]]} color={levelColor(p.difficulty)}
           lineWidth={1} dashed dashSize={0.15} gapSize={0.12} transparent opacity={0.6} depthTest={false} />
       ))}
@@ -85,7 +91,7 @@ export default function RouteLine({ route, active }: { route: RouteResponse; act
         <Billboard key={p.id} position={top[i]}>
           <mesh renderOrder={3}>
             <ringGeometry args={i === active ? [0.24, 0.4, 40] : [0.16, 0.26, 32]} />
-            <meshBasicMaterial color={levelColor(p.difficulty)} toneMapped={false} depthTest={false} transparent />
+            <meshBasicMaterial color={stopColor(p)} toneMapped={false} depthTest={false} transparent />
           </mesh>
           {i === active && (
             <mesh renderOrder={3}>

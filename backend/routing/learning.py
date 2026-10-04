@@ -1,6 +1,7 @@
 """Knowledge Map learning routes (Section 9.3).
 
-learning_route() and trim_by_level() are exactly as written in the brief; they read the
+learning_route() and trim_by_level() are as written in the brief (trim_by_level can also be
+told to keep a scenic waypoint); they read the
 module-level graphs and difficulty array that backend.routing.graph fills at startup.
 """
 import numpy as np
@@ -30,10 +31,10 @@ def learning_route(start, goal, max_stops=6):
     return trim_by_level(path, max_stops), relaxed
 
 
-def trim_by_level(path, max_stops):                   # (v6.1) never trims away a level
+def trim_by_level(path, max_stops, must=()):         # (v6.1) never trims away a level
     if len(path) <= max_stops:
         return path
-    keep = {0, len(path) - 1}
+    keep = {0, len(path) - 1} | {i for i, p in enumerate(path) if p in must}   # e.g. a scenic waypoint
     for lvl in sorted({diff[p] for p in path}):       # first stop at each level
         keep.add(next(i for i, p in enumerate(path) if diff[p] == lvl))
     rest = [i for i in range(len(path)) if i not in keep]

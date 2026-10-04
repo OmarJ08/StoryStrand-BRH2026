@@ -72,6 +72,11 @@ function NarrationButton({ narration, player }: { narration: Narration; player: 
   }
 }
 
+/** Marks the stop a scenic route detours through. */
+export function ScenicTag() {
+  return <span className="mr-1.5 rounded-full bg-[#f2c14e]/20 px-1.5 py-px text-[11px] text-[#f2c14e]">Scenic detour</span>;
+}
+
 const TYPE_LABEL: Record<string, string> = {
   encyclopedia: "Article", paper: "Paper", report: "NASA report", book: "Book", film: "Film",
 };
@@ -121,6 +126,7 @@ export default function ClimbPanel({ route, onStop, narration, player }: {
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium">{s.item.title}</span>
                 <span className="block text-xs text-muted">
+                  {s.item.id === route.scenic?.waypoint_id && <ScenicTag />}
                   {TYPE_LABEL[s.item.type] ?? s.item.type} · level {s.item.difficulty}
                   {s.step_similarity !== null && ` · ${Math.round(s.step_similarity * 100)}% like the last stop`}
                 </span>

@@ -18,7 +18,9 @@ Open a book like *The Martian*, tap **Learn the real science**, and the view fli
 Knowledge Map, where a route climbs like a mountain path, one difficulty level at a time, from an
 encyclopedia article to research papers while a voice guide narrates each stop. Portals link
 books and articles that are each other's best match, one tap away across the two maps from the
-item sheet. Live traffic shows on the neighborhood labels: a visit count and a coral dot that is
+item sheet. On the Book Map, plan a taste route from where you are to another book, take the
+scenic way through a neighborhood you'd otherwise skip (on either map), or **Steer** from a book:
+"like this, but more of that". Live traffic shows on the neighborhood labels: a visit count and a coral dot that is
 brighter where people are exploring.
 
 Built at Big Red Hacks 2026 for the SpaceX track and Best Use of Tiger Data.
@@ -53,6 +55,15 @@ cosine similarity, plus a guaranteed uphill edge for every item below level 5. R
 on the strict graph, where a step may only stay level or climb by one (never drop, never skip).
 Edge cost is `(1 - similarity)^2`, always on the full 1024-d vectors, never on the 3D layout. In
 testing, 100% of random (level 1-2 to level 4-5) pairs had a strict path.
+
+**Taste routes, scenic detours and Steer.** The Book Map has its own road network: each book
+linked to its 10 nearest books, cost `(1 - similarity)^2`, no levels. A taste route runs from a
+book you love (or "You are here") to another book or a vibe, trimmed to evenly spaced stops and
+never through your own picks. Ask for **scenic** on either map and the route detours through the
+neighborhood it skips that is closest to it in meaning, via that neighborhood's most central
+item; on the Knowledge Map the detour still obeys the climb rule. **Steer** ("like this, but more
+of that") slides between two books: the nearest books to `normalize(A + s(B - A))`, leaving out
+both books' authors so sequels and box sets don't fill the list.
 
 **Learn the real science.** The local LLM lists 3 to 5 space-science concepts a book draws on
 (for *The Martian*: planetary atmosphere, rocket propulsion, radiation shielding). Each concept is
@@ -150,7 +161,8 @@ python -m scripts.bake_demo
 
 The data pipeline (fetching, difficulty scoring, embedding, clustering, 3D layout, labeling, the
 road network and portals) lives in `data/scripts/`, outside this repository, because datasets must
-not be committed. Its outputs are loaded into Tiger and `data/processed/graph_knowledge.npz`.
+not be committed. Its outputs are loaded into Tiger and `data/processed/graph_knowledge.npz` + `graph_books.npz`
+(`python build_graph.py --map knowledge|books`).
 
 ## Repository
 
