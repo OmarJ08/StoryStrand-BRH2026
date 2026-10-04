@@ -14,3 +14,15 @@ def trim_even(path: list[int], max_stops: int, must=frozenset(), avoid=frozenset
         keep |= {rest[int((k + 0.5) * step)] for k in range(spare)}
     return [path[i] for i in sorted(keep)]
 
+
+def repeat_authors(path: list[int], authors: dict[int, set[str]]) -> set[int]:
+    """Middle rows sharing an author with the start, the destination or an earlier stop, so a
+    series or box set can't take up several stops."""
+    seen = authors[path[0]] | authors[path[-1]]
+    repeats = set()
+    for r in path[1:-1]:
+        if authors[r] & seen:
+            repeats.add(r)
+        else:
+            seen = seen | authors[r]
+    return repeats

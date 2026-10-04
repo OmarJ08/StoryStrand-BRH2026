@@ -186,6 +186,9 @@ Human Spaceflight Systems.
 - **Taste routes** (Book Map, `/route/books`): `graph_books.npz` (kNN k=10, undirected, cost (1−s)²);
   Dijkstra, evenly spaced trim, guest picks never middle stops; start may be `{guest: true}`; text =
   exact title, else nearest by meaning. No narration.
+- **Topic pages** (Knowledge Map): a typed destination's route passes through its own encyclopedia
+  article (title match among the 5 closest, else closest if ≥ 0.55) when the climb allows it.
+- **One book per author** (taste routes): middle stops never repeat an author already on the route.
 - **Scenic** (both maps, `scenic: true`): waypoint = most central item of the untouched neighborhood
   nearest the route; Knowledge waypoints stay within the start–goal levels and both halves strict.
 - **Steer** (`/steer`, `POST /api/steer`): nearest books to normalize(A + s(B−A)), minus A, B and their authors.
