@@ -44,7 +44,8 @@ FastAPI on the laptop (backend/, uvicorn :8000), Apple Silicon
    ├── Ollama qwen3.5:9b (localhost:11434): route notes, book estimates (labels offline)
    ├── xAI Grok TTS (api.x.ai/v1/tts, voice "ara") for narration, MP3 cache on disk
    ├── Open Library search API for estimated books
-   └── data/processed/graph_knowledge.npz: strict + soft road networks, loaded at startup
+   └── data/processed/graph_knowledge.npz (strict + soft) and graph_books.npz (taste), loaded at
+       startup; neighborhood centroids for scenic detours load from Tiger in a background thread
 ```
 
 Why the backend is local: MLX needs Apple Silicon and Ollama runs locally; ngrok's static domain
@@ -71,16 +72,20 @@ storystrand-brh2026/            (git repo, GitHub OmarJ08/storystrand-brh2026)
     voice.py                     Grok TTS + disk cache
     routing/
       knowledge_cost.py          allowed() strict rule, edge_cost() soft fallback
-      graph.py                   loads graph_knowledge.npz
+      graph.py                   loads graph_knowledge.npz + graph_books.npz
       learning.py                dijkstra, learning_route, trim_by_level
-      service.py                 resolve endpoints (id or text) + plan_route
+      taste.py                   trim_even (Book Map taste routes)
+      scenic.py                  scenic detours on either map
+      neighborhoods.py           per-map labels, centroids, centrality (background load)
+      service.py                 resolve endpoints (id, text or guest) + plan_route (learning / taste)
       notes.py                   one-call Ollama tour-guide notes + transitions
   frontend/
     app/page.tsx                 home (stacked logo, CTAs)
     app/icon.png, apple-icon.png favicon/app icon from the design sheet
     app/(scene)/layout.tsx       shared 3D scene for all pages below
     app/(scene)/map/[map]/       Book/Knowledge map page
-    app/(scene)/route/           route planner + climb panel
+    app/(scene)/route/           learning route planner + climb panel; route/books/ = taste routes
+    app/(scene)/steer/           Steer (Book Map)
     app/(scene)/onboarding/      picker, reveal/
     components/Logo.tsx          mark / horizontal / stacked lockups
     components/SearchBox.tsx     combobox (title/author + optional free-text row)
@@ -88,14 +93,15 @@ storystrand-brh2026/            (git repo, GitHub OmarJ08/storystrand-brh2026)
                                  Labels (DOM overlay), GuestPin, RouteLine, CameraRig,
                                  ItemSheet, MapSwitcher, SceneContext, colors
     components/onboarding/*      OnboardingPicker, RevealFlow, BackButton
-    components/route/*           RoutePlanner, ClimbPanel, useRoutePlayer, useNarration
+    components/route/*           RoutePlanner (both maps), ClimbPanel, TastePanel, useRoutePlayer, useNarration
+    components/steer/SteerPanel  two book pickers + slider + results
     lib/api.ts, lib/types.ts, lib/guest.ts
     public/brand/mark*.png       logo mark: colour, ink (one-colour), white (reversed)
 
 StoryStrand-BRH2026/data/       (outside git, never commit)
   raw/        goodbooks-10k CSVs, arXiv snapshot, API caches
   interim/    cleaned JSONL per source
-  processed/  items.jsonl, embeddings.npy, graph_knowledge.npz, voice/<route_id>/<i>.mp3
+  processed/  items.jsonl, embeddings.npy, graph_knowledge.npz, graph_books.npz, voice/<route_id>/<i>.mp3
   scripts/    pipeline (§5 below)
 ```
 
@@ -135,6 +141,8 @@ Embedding text for every item: `embedding_text()` = `"{title}. {tags joined}. {d
 10. `label_clusters.py --map M`: anchors (§7) + Ollama, snap paraphrases, unique names.
 11. `build_graph.py --map knowledge`: kNN k=10, uphill guarantee, connect components,
     strict + soft graphs → `graph_knowledge.npz`; strict-path check was 100% on 200 pairs.
+    `build_graph.py --map books`: kNN k=10, connect components, one undirected graph →
+    `graph_books.npz` (9,814 nodes, 73,046 edges, 1 component; 200/200 pairs reachable).
 
 Neighborhoods: **Books**: Psychological Thriller, Contemporary Literary Fiction, Paranormal Romance,
 Contemporary YA & Chick Lit, Classic Picture Books, Dragon Epic Fantasy, New Adult Romance,
@@ -157,7 +165,8 @@ Human Spaceflight Systems.
 | `GET /api/books/popular?limit=` | Most-read books for the onboarding grid. |
 | `POST /api/books/estimate {query}` | Any book → `EstimatedBook` (SearchHit + estimated, description, tags, nearest_titles, found_online). Takes ~5–13 s (qwen). |
 | `POST /api/guest {guest_id, book_ids[5]}` | ids may be `book:*` or `est:*`. Returns picks, book_pin, curiosity_pin (null unless ≥ 2 sci-fi picks), DNA per map, scifi_picks. |
-| `POST /api/route {start, destination}` | Each endpoint is `{item_id}` or `{text}`. Returns route id, stops (with difficulty), relaxed flag; kicks off notes in the background. |
+| `POST /api/route {map, start, destination, scenic?, guest_id?}` | Each endpoint is `{item_id}`, `{text}` or (book starts) `{guest: true}`. Knowledge: learning route, notes kicked off in the background. Books: `kind: "taste"`, `notes_status: "none"`. `scenic: true` adds a detour; the response's `scenic` is `{label, waypoint_id}` or null when none fits. |
+| `POST /api/steer {a_id, b_id, s, k=8}` | Steer: nearest books to normalize(A + s(B − A)), excluding A, B and their authors. |
 | `POST /api/bridge/learn {book_id, guest_id?, max_stops=5}` | "Learn the real science": same shape as /api/route with `kind: "bridge"`, `book`, `concepts`. 422 if the book draws on too little space science. |
 | `GET /api/traffic?map=` | Visits per neighborhood (30 min, continuous aggregate), `recent` (15 s), `real_visits`, `simulated_visits`. Simulated events count only while the simulation is on. |
 | `GET/POST /api/simulation {running}` | Demo switch for the in-API traffic simulator (hidden dot, bottom right of the home page). |
@@ -258,7 +267,8 @@ Schema: `python -m backend.db.apply_schema`, then `psql "$DATABASE_URL" -f backe
 
 ## 12. Known gaps / next ideas
 
-- Book Map routes are not implemented (routes are Knowledge Map only).
+- Taste routes have no narration (the notes prompt is about the climb).
+- Taste routes, scenic and Steer need the live API (no baked fallback for venue Wi-Fi).
 - Search/item events carry no guest_id (only routes and learns do).
 - Estimated books are not drawn as map points; they only influence the guest's pin and DNA.
 - Backend must be running on the laptop for the deployed site to work.

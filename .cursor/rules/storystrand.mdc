@@ -22,7 +22,9 @@ There are two separate 3D maps, Book Map and Knowledge Map, which share one BGE-
 - Clustering: 12-d UMAP, then sklearn HDBSCAN; noise points join the nearest centroid. A separate 3D UMAP is for display only. `cluster_items.py` has tuned per-map defaults: both maps use leaf selection (the default "eom" method collapses into one giant blob). Knowledge (6k items) uses min_cluster_size 180 and min_samples 5 (12 clusters); books (9.8k) use 120 and 10 (18 clusters). Retune when item counts change.
 - **Routes, search and bridges always use full 1024-d cosine similarity, never 3D/UMAP distance.** Edge cost = (1 − s)².
 - **Strict climb rule (Knowledge Map):** a learning-route edge is allowed only if `d_to - d_from ∈ {0, 1}`. Never drop a level, never skip one. This is a hard graph filter, not a penalty. Every level 1–4 item gets an uphill edge to its nearest level+1 item. If there is no strict path, fall back to the soft graph and return `relaxed: true`; demo routes must be strict. Trimming keeps ≥1 stop per level.
-- Book Map taste routes: undirected Dijkstra, trimmed to max_stops (default 6).
+- Book Map taste routes: undirected Dijkstra on `graph_books.npz`, trimmed to evenly spaced stops (max_stops, default 6); a guest's own picks are never middle stops.
+- Scenic (either map): waypoint = most central item of the untouched neighborhood nearest the route; on the Knowledge Map it must sit within the start–goal levels and both halves must be strict.
+- Steer: nearest books to normalize(A + s(B − A)), excluding A, B and their authors.
 
 ## Frontend rules
 - **All frontend HTTP goes through `api()` in `frontend/lib/api.ts`** (sends the `ngrok-skip-browser-warning` header). Never call bare `fetch`.
