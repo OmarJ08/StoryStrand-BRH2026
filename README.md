@@ -53,13 +53,15 @@ the guide narrates, so the climb is something you can see.
 **Learning routes.** A road network links every knowledge item to its 10 nearest neighbors by
 cosine similarity, plus a guaranteed uphill edge for every item below level 5. Routes run Dijkstra
 on the strict graph, where a step may only stay level or climb by one (never drop, never skip).
+A typed destination's route also passes through that topic's own encyclopedia article
+("supernovas" goes through Supernova) whenever its level fits the climb.
 Edge cost is `(1 - similarity)^2`, always on the full 1024-d vectors, never on the 3D layout. In
 testing, 100% of random (level 1-2 to level 4-5) pairs had a strict path.
 
 **Taste routes, scenic detours and Steer.** The Book Map has its own road network: each book
 linked to its 10 nearest books, cost `(1 - similarity)^2`, no levels. A taste route runs from a
-book you love (or "You are here") to another book or a vibe, trimmed to evenly spaced stops and
-never through your own picks. Ask for **scenic** on either map and the route detours through the
+book you love (or "You are here") to another book or a vibe, trimmed to evenly spaced stops,
+never through your own picks and never two books by the same author. Ask for **scenic** on either map and the route detours through the
 neighborhood it skips that is closest to it in meaning, via that neighborhood's most central
 item; on the Knowledge Map the detour still obeys the climb rule. **Steer** ("like this, but more
 of that") slides between two books: the nearest books to `normalize(A + s(B - A))`, leaving out
