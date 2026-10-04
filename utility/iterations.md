@@ -191,3 +191,9 @@ their changes are described here without hashes.
 | Change | Why |
 |---|---|
 | Notes: overlong notes are trimmed locally at a sentence boundary (`shorten()`); up to 3 attempts; job timeout 25 → 45 s. Frontend waits up to 60 s for notes (was 30). | A route on Vercel showed "No narration": qwen returned 4 notes for 5 stops and two over 240 chars, twice; another route hit the 25 s timeout. Not a Vercel issue. Re-running both failed routes with the fix gave ready notes. |
+
+## 19. Traffic on the labels
+
+| Change | Why |
+|---|---|
+| Removed `TrafficPulse` (breathing glows + pings) and `PortalMarkers` (gold rings) from the scene. Each neighborhood label now ends in a coral dot and its 30-min visit count: dot opacity 0.3 + 0.7·√(visits / busiest), one 900 ms halo when a poll reports fresh visits (`LiveTraffic.poll` keys the restart; off under `prefers-reduced-motion`), nothing for 0 visits. Badge dot no longer pings. Portals stay in the item sheet. | Rings piled up into glare across the Knowledge Map and hid the points; counts on the labels say which neighborhood is busiest at a glance. |

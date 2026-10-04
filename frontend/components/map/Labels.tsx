@@ -4,6 +4,7 @@ import { useFrame } from "@react-three/fiber";
 import { useEffect, useRef, type RefObject } from "react";
 import { Color, Vector3 } from "three";
 import type { MapPoint } from "@/lib/types";
+import type { LiveTraffic } from "./Traffic";
 
 const FADE_START = 40;
 const FADE_END = 60;
@@ -39,35 +40,58 @@ export function centroidsOf(points: MapPoint[]): Centroid[] {
 const hex = (palette: Map<string, Color>, label: string) =>
   `#${palette.get(label)?.getHexString() ?? "ffffff"}`;
 
-/** Plain DOM labels over the canvas; LabelProjector moves and declutters them every frame. */
-export function LabelOverlay({ centroids, palette, refs, active }: {
+/**
+ * Plain DOM labels over the canvas; LabelProjector moves and declutters them every frame.
+ * With traffic, each visited neighborhood's label ends in a coral dot and its visit count:
+ * the dot is brighter the busier the neighborhood, and flashes once when a poll brings
+ * fresh visits.
+ */
+export function LabelOverlay({ centroids, palette, refs, active, traffic }: {
   centroids: Centroid[];
   palette: Map<string, Color>;
   refs: LabelRefs;
   active: string | null;
+  traffic: LiveTraffic | null;
 }) {
+  const activity = new Map(traffic?.neighborhoods.map((n) => [n.label, n]));
+  const busiest = Math.max(1, ...(traffic?.neighborhoods.map((n) => n.visits) ?? []));
   return (
     <div className="pointer-events-none fixed inset-0 z-[5] overflow-hidden">
-      {centroids.map((c, i) => (
-        <div
-          key={c.label}
-          ref={(el) => {
-            refs.current[i] = el;
-          }}
-          className={`absolute top-0 left-0 flex items-center gap-1.5 whitespace-nowrap rounded-full border-2 bg-surface px-3 py-1 font-display text-[13px] font-semibold text-white opacity-0 shadow-lg shadow-black/50 will-change-transform ${
-            c.label === active ? "z-10" : ""
-          }`}
-          style={{
-            borderColor: hex(palette, c.label),
-            textShadow: "0 1px 3px rgb(0 0 0 / 0.8)",
-            // fades in; LabelProjector zeroes the duration so hiding is instant
-            transition: "opacity 250ms ease",
-          }}
-        >
-          <span className="size-2 rounded-full" style={{ background: hex(palette, c.label) }} />
-          {c.label}
-        </div>
-      ))}
+      {centroids.map((c, i) => {
+        const a = activity.get(c.label);
+        return (
+          <div
+            key={c.label}
+            ref={(el) => {
+              refs.current[i] = el;
+            }}
+            className={`absolute top-0 left-0 flex items-center gap-1.5 whitespace-nowrap rounded-full border-2 bg-surface px-3 py-1 font-display text-[13px] font-semibold text-white opacity-0 shadow-lg shadow-black/50 will-change-transform ${
+              c.label === active ? "z-10" : ""
+            }`}
+            style={{
+              borderColor: hex(palette, c.label),
+              textShadow: "0 1px 3px rgb(0 0 0 / 0.8)",
+              // fades in; LabelProjector zeroes the duration so hiding is instant
+              transition: "opacity 250ms ease",
+            }}
+          >
+            <span className="size-2 rounded-full" style={{ background: hex(palette, c.label) }} />
+            {c.label}
+            {traffic && a && a.visits > 0 && (
+              <span className="ml-1 flex items-center gap-1.5 border-l border-line pl-2 font-sans text-[11px] font-medium text-muted tabular-nums">
+                <span className="relative flex size-1.5">
+                  {a.recent > 0 && (
+                    <span key={traffic.poll} className="traffic-flash absolute inset-0 rounded-full bg-coral" />
+                  )}
+                  <span className="relative size-1.5 rounded-full bg-coral"
+                    style={{ opacity: 0.3 + 0.7 * Math.sqrt(a.visits / busiest) }} />
+                </span>
+                {a.visits.toLocaleString()}
+              </span>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
