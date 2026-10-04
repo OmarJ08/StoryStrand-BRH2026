@@ -36,20 +36,23 @@ const OFFLINE_HITS = 8;
 
 /**
  * The persistent map scene: lives in app/(scene)/layout.tsx so moving between /map/*,
- * /route and /onboarding never remounts it. /route shows the Knowledge Map, onboarding the
- * Book Map unless a page sets mapOverride. A guest's pin shows on whichever map is up.
+ * /route, /steer and /onboarding never remounts it. /route shows the Knowledge Map; taste
+ * routes (/route/books), /steer and onboarding the Book Map unless a page sets mapOverride.
+ * A guest's pin shows on whichever map is up.
  */
 export default function MapExperience() {
   const params = useParams<{ map?: string }>();
   const pathname = usePathname();
-  const onRoute = pathname === "/route";
+  const onRoute = pathname === "/route" || pathname === "/route/books";
+  const onSteer = pathname === "/steer";
   const onMapPage = pathname.startsWith("/map/");
   const onReveal = pathname === "/onboarding/reveal";
   const router = useRouter();
   const {
     route, setRoute, selection, setSelection, focus, flyTo, activeStop, setActiveStop, mapOverride, setAutoplay,
+    setSteerFrom, highlight,
   } = useScene();
-  const map: MapName = mapOverride ?? (onRoute || params.map === "knowledge" ? "knowledge" : "books");
+  const map: MapName = mapOverride ?? (pathname === "/route" || params.map === "knowledge" ? "knowledge" : "books");
   const guest = useGuest();
   const guestPin = guest ? (map === "books" ? guest.book_pin : guest.curiosity_pin) : null;
   const pinLabel = useRef<HTMLDivElement>(null);
@@ -73,7 +76,8 @@ export default function MapExperience() {
   }, [map, data]);
 
   const points = data[map];
-  const showRoute = onRoute && route !== null;
+  const showRoute = onRoute && route !== null && route.map === map;
+  const lit = useMemo(() => (onSteer && highlight ? new Set(highlight) : null), [onSteer, highlight]);
   // Explorers (no pin of their own on this map) start at the centre of the map's cloud.
   const explorerPin = useMemo<Pin | null>(() => {
     if (!points?.length) return null;
@@ -183,6 +187,7 @@ export default function MapExperience() {
               selected={selected}
               hovered={hovered}
               dimmed={showRoute}
+              highlight={lit}
             />
             <LabelProjector
               centroids={centroids}
@@ -193,7 +198,7 @@ export default function MapExperience() {
             <PointPicker points={points} onPick={onPick} onHover={onHover} />
           </>
         )}
-        {showRoute && <RouteLine route={route} active={activeStop} />}
+        {showRoute && route && <RouteLine route={route} active={activeStop} />}
         {pin && (
           <group key={`${guest?.guest_id ?? "explorer"}-${map}-${pin.x}`}>
             <GuestPin pin={pin} color={PIN_COLOR[map]} />
@@ -251,14 +256,12 @@ export default function MapExperience() {
               You&apos;re at the centre for now. <span className="text-coral">Pick 5 books</span> to place yourself
             </Link>
           )}
-          {map === "knowledge" && (
-            <Link
-              href="/route"
-              className="pointer-events-auto rounded-full bg-coral px-4 py-1.5 font-display text-sm font-semibold text-ink shadow-lg shadow-black/40"
-            >
-              Plan a learning route
-            </Link>
-          )}
+          <Link
+            href={map === "knowledge" ? "/route" : "/route/books"}
+            className="pointer-events-auto rounded-full bg-coral px-4 py-1.5 font-display text-sm font-semibold text-ink shadow-lg shadow-black/40"
+          >
+            {map === "knowledge" ? "Plan a learning route" : "Plan a taste route"}
+          </Link>
         </header>
       )}
 
@@ -272,6 +275,11 @@ export default function MapExperience() {
       {onMapPage && !selected && <UnderTheHood />}
       <ItemSheet point={selected} palette={palette} onClose={() => setSelection(null)}
         onLearn={map === "books" ? onLearn : undefined}
+        onSteer={map === "books" && !onSteer ? (book) => {
+          setSteerFrom(book);
+          setSelection(null);
+          router.push("/steer");
+        } : undefined}
         portals={selected ? portalsHere.get(selected.id) : undefined} onPortal={onPortal} />
     </>
   );

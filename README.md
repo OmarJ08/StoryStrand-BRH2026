@@ -54,6 +54,15 @@ on the strict graph, where a step may only stay level or climb by one (never dro
 Edge cost is `(1 - similarity)^2`, always on the full 1024-d vectors, never on the 3D layout. In
 testing, 100% of random (level 1-2 to level 4-5) pairs had a strict path.
 
+**Taste routes, scenic detours and Steer.** The Book Map has its own road network: each book
+linked to its 10 nearest books, cost `(1 - similarity)^2`, no levels. A taste route runs from a
+book you love (or "You are here") to another book or a vibe, trimmed to evenly spaced stops and
+never through your own picks. Ask for **scenic** on either map and the route detours through the
+neighborhood it skips that is closest to it in meaning, via that neighborhood's most central
+item; on the Knowledge Map the detour still obeys the climb rule. **Steer** ("like this, but more
+of that") slides between two books: the nearest books to `normalize(A + s(B - A))`, leaving out
+both books' authors so sequels and box sets don't fill the list.
+
 **Learn the real science.** The local LLM lists 3 to 5 space-science concepts a book draws on
 (for *The Martian*: planetary atmosphere, rocket propulsion, radiation shielding). Each concept is
 embedded and snapped to its nearest knowledge item; weak matches are dropped. The route starts at
@@ -150,7 +159,8 @@ python -m scripts.bake_demo
 
 The data pipeline (fetching, difficulty scoring, embedding, clustering, 3D layout, labeling, the
 road network and portals) lives in `data/scripts/`, outside this repository, because datasets must
-not be committed. Its outputs are loaded into Tiger and `data/processed/graph_knowledge.npz`.
+not be committed. Its outputs are loaded into Tiger and `data/processed/graph_knowledge.npz` + `graph_books.npz`
+(`python build_graph.py --map knowledge|books`).
 
 ## Repository
 

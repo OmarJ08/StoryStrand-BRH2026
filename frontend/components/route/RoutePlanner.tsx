@@ -7,12 +7,14 @@ import { pointFocus, pointsFocus } from "@/components/map/CameraRig";
 import { liftedPoint } from "@/components/map/RouteLine";
 import { useScene } from "@/components/map/SceneContext";
 import { api } from "@/lib/api";
-import type { RouteEndpoint, RouteResponse, SearchHit } from "@/lib/types";
+import { useGuest } from "@/lib/guest";
+import type { MapName, RouteEndpoint, RouteResponse, SearchHit } from "@/lib/types";
 import ClimbPanel from "./ClimbPanel";
+import TastePanel from "./TastePanel";
 import { useNarration } from "./useNarration";
 import { useRoutePlayer } from "./useRoutePlayer";
 
-type Pick = { kind: "text"; text: string } | { kind: "item"; hit: SearchHit };
+type Pick = { kind: "text"; text: string } | { kind: "item"; hit: SearchHit } | { kind: "guest" };
 
 function toEndpoint(pick: Pick): RouteEndpoint {
   switch (pick.kind) {
@@ -20,6 +22,8 @@ function toEndpoint(pick: Pick): RouteEndpoint {
       return { text: pick.text };
     case "item":
       return { item_id: pick.hit.id };
+    case "guest":
+      return { guest: true };
     default: {
       const unhandled: never = pick;
       return unhandled;
@@ -27,7 +31,40 @@ function toEndpoint(pick: Pick): RouteEndpoint {
   }
 }
 
-function Field({ label, pick, onPick, placeholder }: {
+function pickLabel(pick: Pick): string {
+  switch (pick.kind) {
+    case "text":
+      return `“${pick.text}”`;
+    case "item":
+      return pick.hit.title;
+    case "guest":
+      return "You are here";
+    default: {
+      const unhandled: never = pick;
+      return unhandled;
+    }
+  }
+}
+
+const COPY: Record<MapName, { title: string; from: string; to: string; hint: string; finding: string }> = {
+  knowledge: {
+    title: "Learning route",
+    from: "Where you are, e.g. what is Mars like",
+    to: "Where to go, e.g. Martian atmospheric chemistry",
+    hint: "Matches the closest topics, not just titles",
+    finding: "Finding your climb…",
+  },
+  books: {
+    title: "Taste route",
+    from: "A book you love",
+    to: "A book to head toward, or a vibe",
+    hint: "Matches the closest book by feel, not just titles",
+    finding: "Finding your way…",
+  },
+};
+
+function Field({ map, label, pick, onPick, placeholder }: {
+  map: MapName;
   label: string;
   pick: Pick | null;
   onPick: (pick: Pick | null) => void;
@@ -38,27 +75,33 @@ function Field({ label, pick, onPick, placeholder }: {
       <span className="w-10 shrink-0 text-sm text-muted">{label}</span>
       {pick ? (
         <div className="flex min-w-0 flex-1 items-center justify-between gap-2 rounded-full border border-line bg-ink py-2 pr-2 pl-4">
-          <span className="truncate text-sm">
-            {pick.kind === "text" ? `“${pick.text}”` : pick.hit.title}
-          </span>
+          <span className="truncate text-sm">{pickLabel(pick)}</span>
           <button onClick={() => onPick(null)} aria-label={`Clear ${label}`}
             className="shrink-0 rounded-full px-2 text-muted hover:text-white">×</button>
         </div>
       ) : (
         <SearchBox
-          map="knowledge"
+          map={map}
           placeholder={placeholder}
           onSelect={(hit) => onPick({ kind: "item", hit })}
           onText={(text) => onPick({ kind: "text", text })}
+          textHint={COPY[map].hint}
         />
       )}
     </div>
   );
 }
 
-/** Start + destination inputs; the route is drawn on the shared map via SceneContext. */
-export default function RoutePlanner() {
-  const { route, setRoute, setSelection, flyTo, setActiveStop, autoplay, setAutoplay } = useScene();
+/**
+ * Start + destination inputs; the route is drawn on the shared map via SceneContext.
+ * Knowledge Map: a learning route (climb + narration). Book Map: a taste route, which can
+ * start from "You are here". Either can be scenic: a detour through a nearby neighborhood.
+ */
+export default function RoutePlanner({ map }: { map: MapName }) {
+  const scene = useScene();
+  const { setRoute, setSelection, flyTo, setActiveStop, autoplay, setAutoplay } = scene;
+  const route = scene.route?.map === map ? scene.route : null;   // a route from the other map isn't ours
+  const guest = useGuest();
   const narration = useNarration(route);
   const player = useRoutePlayer(
     narration.status === "ready" ? narration.clips : null,
@@ -85,20 +128,29 @@ export default function RoutePlanner() {
 
   const [start, setStart] = useState<Pick | null>(null);
   const [destination, setDestination] = useState<Pick | null>(null);
+  const [scenic, setScenic] = useState(false);
+  const [scenicAsked, setScenicAsked] = useState(false);   // for "no detour found" after the fact
   const [editing, setEditing] = useState(false);
+  // a guest with a Book Map pin starts taste routes from it until they clear it
+  const [fromHere, setFromHere] = useState(true);
+  const from = start ?? (map === "books" && guest && fromHere ? { kind: "guest" as const } : null);
   const [status, setStatus] = useState<{ state: "idle" | "loading" } | { state: "error"; message: string }>(
     { state: "idle" },
   );
 
   const findRoute = () => {
-    if (!start || !destination) return;
+    if (!from || !destination) return;
     setStatus({ state: "loading" });
     api<RouteResponse>("/api/route", {
       method: "POST",
-      body: JSON.stringify({ map: "knowledge", start: toEndpoint(start), destination: toEndpoint(destination) }),
+      body: JSON.stringify({
+        map, scenic, guest_id: guest?.guest_id,
+        start: toEndpoint(from), destination: toEndpoint(destination),
+      }),
     })
       .then((r) => {
         setRoute(r);
+        setScenicAsked(scenic);
         setEditing(false);
         setSelection(null);
         setActiveStop(null);
@@ -114,9 +166,9 @@ export default function RoutePlanner() {
         <div className="pointer-events-auto w-full max-w-md space-y-2 rounded-3xl border border-line bg-surface p-4 shadow-2xl shadow-black/50">
           <div className="flex items-center justify-between px-1">
             <h1 className="min-w-0 truncate font-display text-base font-semibold">
-              {route?.book && !editing ? `The real science of ${route.book.title}` : "Learning route"}
+              {route?.book && !editing ? `The real science of ${route.book.title}` : COPY[map].title}
             </h1>
-            <Link href={route?.book && !editing ? "/map/books" : "/map/knowledge"}
+            <Link href={route?.book && !editing ? "/map/books" : `/map/${map}`}
               className="shrink-0 pl-2 text-xs text-muted hover:text-white">← Map</Link>
           </div>
           {route?.book && !editing && route.concepts.length > 0 && (
@@ -140,25 +192,41 @@ export default function RoutePlanner() {
             </div>
           ) : (
             <>
-              <Field label="From" pick={start} onPick={setStart}
-                placeholder="Where you are, e.g. what is Mars like" />
-              <Field label="To" pick={destination} onPick={setDestination}
-                placeholder="Where to go, e.g. Martian atmospheric chemistry" />
+              <Field map={map} label="From" pick={from} onPick={(p) => {
+                setStart(p);
+                if (!p) setFromHere(false);
+              }}
+                placeholder={COPY[map].from} />
+              <Field map={map} label="To" pick={destination} onPick={setDestination}
+                placeholder={COPY[map].to} />
+              <label className="flex cursor-pointer items-center gap-2 px-1 text-sm text-white/85">
+                <input type="checkbox" checked={scenic} onChange={(e) => setScenic(e.target.checked)}
+                  className="size-4 accent-coral" />
+                Scenic: detour through a nearby neighborhood
+              </label>
               <button
                 onClick={findRoute}
-                disabled={!start || !destination || status.state === "loading"}
+                disabled={!from || !destination || status.state === "loading"}
                 className="w-full rounded-full bg-coral py-2.5 font-display font-semibold text-ink transition-opacity disabled:opacity-40"
               >
-                {status.state === "loading" ? "Finding your climb…" : "Find route"}
+                {status.state === "loading" ? COPY[map].finding : "Find route"}
               </button>
             </>
+          )}
+          {route && !editing && route.scenic && (
+            <p className="px-1 text-xs text-muted">
+              Scenic, via <span className="text-white">{route.scenic.label}</span>
+            </p>
+          )}
+          {route && !editing && scenicAsked && !route.scenic && (
+            <p className="px-1 text-xs text-muted">No scenic detour fits this route, so here is the direct one.</p>
           )}
           {status.state === "error" && (
             <p className="px-1 text-xs text-coral">Could not find a route: {status.message}</p>
           )}
         </div>
       </header>
-      {route && (
+      {route && (map === "knowledge" ? (
         <ClimbPanel
           route={route}
           narration={narration}
@@ -168,7 +236,15 @@ export default function RoutePlanner() {
             flyTo(pointFocus(item));
           }}
         />
-      )}
+      ) : (
+        <TastePanel
+          route={route}
+          onStop={(item) => {
+            setSelection({ map: "books", point: item });
+            flyTo(pointFocus(item));
+          }}
+        />
+      ))}
     </>
   );
 }

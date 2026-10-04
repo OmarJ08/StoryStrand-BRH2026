@@ -54,6 +54,8 @@ interface Props {
   onClose: () => void;
   /** Books only: build the "Learn the real science" route and take the user there. */
   onLearn?: (book: MapPoint) => Promise<void>;
+  /** Books only: open Steer ("like this, but more of that") from this book. */
+  onSteer?: (book: MapPoint) => void;
   /** Portals from this point to the other map; tapping one flies there. */
   portals?: Portal[];
   onPortal?: (portal: Portal) => void;
@@ -106,7 +108,7 @@ function LearnButton({ book, onLearn }: { book: MapPoint; onLearn: (book: MapPoi
  * Bottom sheet over the persistent map. Only the handle drags (swipe down to dismiss), so
  * the description stays selectable; links open the real source in a new tab.
  */
-export default function ItemSheet({ point, palette, onClose, onLearn, portals, onPortal }: Props) {
+export default function ItemSheet({ point, palette, onClose, onLearn, onSteer, portals, onPortal }: Props) {
   const drag = useDragControls();
   const detail = useItemDetail(point?.id ?? null);
 
@@ -167,6 +169,12 @@ export default function ItemSheet({ point, palette, onClose, onLearn, portals, o
 
             {portals && portals.length > 0 && onPortal && <PortalLinks portals={portals} onPortal={onPortal} />}
             {onLearn && point.type === "book" && <LearnButton key={point.id} book={point} onLearn={onLearn} />}
+            {onSteer && point.type === "book" && (
+              <button onClick={() => onSteer(point)}
+                className="mt-2 w-full rounded-full border border-line px-4 py-2.5 font-display text-sm font-semibold hover:border-white/40">
+                Steer from here: like this, but more of…
+              </button>
+            )}
             {detail ? <DetailBody detail={detail} /> : <p className="mt-4 text-sm text-muted">Loading details…</p>}
           </div>
         </motion.section>

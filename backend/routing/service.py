@@ -52,8 +52,9 @@ def resolve(conn: psycopg.Connection, ep: RouteEndpoint, role: Literal["start", 
 
 
 def resolve_book(conn: psycopg.Connection, ep: RouteEndpoint, role: str, guest_id: UUID | None) -> int:
-    """Book Map graph row for an endpoint (Section 9.2): an item is itself, text is the
-    nearest book, the guest is the book nearest their taste centroid."""
+    """Book Map graph row for an endpoint (Section 9.2): an item is itself, text is a book
+    with that exact title or else the nearest book, the guest is the book nearest their
+    taste centroid."""
     b = graph_module.books
     if ep.item_id is not None:
         if ep.item_id not in b.index:
@@ -67,8 +68,11 @@ def resolve_book(conn: psycopg.Connection, ep: RouteEndpoint, role: str, guest_i
             "ORDER BY i.embedding <=> g.centroid LIMIT 1", (guest_id,)).fetchone()
         if row is None:
             raise HTTPException(422, f"{role}: unknown guest; pick 5 books first")
-    else:
+    else:   # a typed title means that book (most-read edition); anything else, by meaning
         row = conn.execute(
+            "SELECT id FROM items WHERE map = 'books' AND lower(title) = lower(%s) "
+            "ORDER BY coalesce((attributes->>'ratings_count')::int, 0) DESC LIMIT 1", (ep.text,)).fetchone()
+        row = row or conn.execute(
             "SELECT id FROM items WHERE map = 'books' ORDER BY embedding <=> %s LIMIT 1",
             (embed([ep.text])[0],)).fetchone()
     return b.index[row[0]]

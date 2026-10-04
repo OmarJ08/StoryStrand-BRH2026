@@ -61,8 +61,9 @@ export interface GuestResponse {
   dna: { books: DnaShare[]; knowledge?: DnaShare[] };
 }
 
-/** A route start or destination: typed text (matched by meaning) or a known item. */
-export type RouteEndpoint = { text: string } | { item_id: string };
+/** A route start or destination: typed text (matched by meaning), a known item, or (book
+ *  map starts only) the guest's own position, "You are here". */
+export type RouteEndpoint = { text: string } | { item_id: string } | { guest: true };
 
 export interface RouteStop {
   item: SearchHit;
@@ -76,10 +77,12 @@ export type NotesStatus = "pending" | "ready" | "none";
 export interface RouteResponse {
   route_id: string;
   map: MapName;
-  kind: "learning" | "bridge";
+  kind: "learning" | "bridge" | "taste";
   relaxed: boolean;
   stops: RouteStop[];
   notes_status: NotesStatus;
+  /** set when a scenic detour was asked for and found: the neighborhood and its waypoint stop */
+  scenic?: { label: string; waypoint_id: string } | null;
   /** bridge routes only ("Learn the real science"): the book and its concepts */
   book: SearchHit | null;
   concepts: string[];

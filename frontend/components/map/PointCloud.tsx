@@ -25,9 +25,11 @@ interface Props {
   selected: MapPoint | null;
   hovered: MapPoint | null;
   dimmed?: boolean;      // fade the whole map back, e.g. so a route stands out
+  highlight?: Set<string> | null;   // keep these bright and enlarged, dim the rest (Steer)
 }
 
 const DIMMED = 0.3;
+const HIGHLIGHT_SCALE = 2.5;
 
 /** A flat ring that always faces the camera, drawn around one point. */
 function Outline({ map, point, inner, outer, color }: {
@@ -45,9 +47,10 @@ function Outline({ map, point, inner, outer, color }: {
 }
 
 /** Every point on the map as ONE instanced mesh: a single draw call. */
-export default function PointCloud({ map, points, palette, selected, hovered, dimmed = false }: Props) {
+export default function PointCloud({ map, points, palette, selected, hovered, dimmed = false, highlight = null }: Props) {
   const mesh = useRef<InstancedMesh>(null);
   const geometry = useMemo(() => new IcosahedronGeometry(1, 1), []);
+  const litPoints = useMemo(() => (highlight ? points.filter((p) => highlight.has(p.id)) : []), [points, highlight]);
 
   useLayoutEffect(() => {
     const m = mesh.current;
@@ -55,18 +58,19 @@ export default function PointCloud({ map, points, palette, selected, hovered, di
     const o = new Object3D();
     const c = new Color();
     points.forEach((p, i) => {
+      const lit = highlight?.has(p.id);
       o.position.set(p.x, p.y, p.z);
-      o.scale.setScalar(sizeOf(map, p));
+      o.scale.setScalar(sizeOf(map, p) * (lit ? HIGHLIGHT_SCALE : 1));
       o.updateMatrix();
       m.setMatrixAt(i, o.matrix);
       c.copy(palette.get(p.cluster_label) ?? c.set("#ffffff"))
-        .multiplyScalar(brightnessOf(map, p) * (dimmed ? DIMMED : 1));
+        .multiplyScalar(brightnessOf(map, p) * (dimmed || (highlight && !lit) ? DIMMED : 1));
       m.setColorAt(i, c);
     });
     m.instanceMatrix.needsUpdate = true;
     if (m.instanceColor) m.instanceColor.needsUpdate = true;
     m.computeBoundingSphere();
-  }, [map, points, palette, dimmed]);
+  }, [map, points, palette, dimmed, highlight]);
 
   return (
     <>
@@ -81,6 +85,9 @@ export default function PointCloud({ map, points, palette, selected, hovered, di
       {hovered && hovered.id !== selected?.id && (
         <Outline map={map} point={hovered} inner={1.35} outer={1.9} color="#ffffff" />
       )}
+      {litPoints.map((p) => p.id !== selected?.id && (
+        <Outline key={`lit-${p.id}`} map={map} point={p} inner={3} outer={3.8} color="#ffffff" />
+      ))}
       {selected && <Outline map={map} point={selected} inner={2.2} outer={3} color="#ff7b67" />}
     </>
   );

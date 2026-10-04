@@ -1,12 +1,13 @@
 "use client";
 
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
 import type { MapName, MapPoint, RouteResponse } from "@/lib/types";
 import type { Focus, FocusTarget } from "./CameraRig";
 
 /**
  * State shared by the persistent map (MapExperience) and the pages inside the (scene)
- * layout: the current route, the selected point, and where the camera should fly.
+ * layout: the current route, the selected point, where the camera should fly, and Steer's
+ * starting book and highlighted results.
  */
 interface Scene {
   route: RouteResponse | null;
@@ -24,6 +25,12 @@ interface Scene {
   /** Start the route's narration as soon as it is ready (set by "Learn the real science"). */
   autoplay: boolean;
   setAutoplay: (autoplay: boolean) => void;
+  /** Steer: the book "Steer from here" was tapped on, picked up by /steer. */
+  steerFrom: MapPoint | null;
+  setSteerFrom: (book: MapPoint | null) => void;
+  /** Points to keep bright while the rest of the map dims (Steer's results). */
+  highlight: string[] | null;
+  setHighlight: (ids: string[] | null) => void;
 }
 
 const SceneContext = createContext<Scene | null>(null);
@@ -35,12 +42,16 @@ export function SceneProvider({ children }: { children: ReactNode }) {
   const [activeStop, setActiveStop] = useState<number | null>(null);
   const [mapOverride, setMapOverride] = useState<MapName | null>(null);
   const [autoplay, setAutoplay] = useState(false);
-  const flyTo = (target: FocusTarget) => setFocus((f) => ({ ...target, key: (f?.key ?? 0) + 1 }));
+  const [steerFrom, setSteerFrom] = useState<MapPoint | null>(null);
+  const [highlight, setHighlight] = useState<string[] | null>(null);
+  const flyTo = useCallback(   // stable, so pages can list it as an effect dependency
+    (target: FocusTarget) => setFocus((f) => ({ ...target, key: (f?.key ?? 0) + 1 })), []);
   return (
     <SceneContext.Provider
       value={{
         route, setRoute, selection, setSelection, focus, flyTo,
         activeStop, setActiveStop, mapOverride, setMapOverride, autoplay, setAutoplay,
+        steerFrom, setSteerFrom, highlight, setHighlight,
       }}
     >
       {children}

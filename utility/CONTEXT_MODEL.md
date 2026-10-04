@@ -174,6 +174,12 @@ Human Spaceflight Systems.
   `trim_by_level` shortens to ≤ 6 stops without removing any represented level.
 - **Endpoint resolution**: free text is embedded; among the top 20 candidates within 0.05 similarity
   of the best, prefer low difficulty for a start and high for a destination.
+- **Taste routes** (Book Map, `/route/books`): `graph_books.npz` (kNN k=10, undirected, cost (1−s)²);
+  Dijkstra, evenly spaced trim, guest picks never middle stops; start may be `{guest: true}`; text =
+  exact title, else nearest by meaning. No narration.
+- **Scenic** (both maps, `scenic: true`): waypoint = most central item of the untouched neighborhood
+  nearest the route; Knowledge waypoints stay within the start–goal levels and both halves strict.
+- **Steer** (`/steer`, `POST /api/steer`): nearest books to normalize(A + s(B−A)), minus A, B and their authors.
 - **Guest**: centroid = normalized mean of pick vectors. Book pin = mean x,y,z of picks.
   DNA = softmax(cosine(centroid, neighborhood centroid) / 0.05). Curiosity pin = mean position of
   20 nearest knowledge items; shown only if ≥ 2 picks are sci-fi (tags regex or Hard Sci-Fi/space neighborhood).
